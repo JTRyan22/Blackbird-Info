@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Router &amp; Switcher I/O List</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    // ---- Supabase config ----
+    // Get these from your Supabase project: Settings -> API.
+    // The anon key is safe to expose in client-side code -- it's the
+    // publishable key. Access control is enforced by Row Level Security
+    // policies on the "shows" table (see schema.sql), not by hiding this key.
+    const SUPABASE_URL = idlynkandrzounddjpqy;
+    const SUPABASE_ANON_KEY = sb_publishable_3OLOfvQ5YEz2fTy0Fz7VMw_ab45T6Mh;
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  </script>
+</head>
+<body style="margin:0; background:#0a0b0e; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; padding:20px;">
+  <div id="dbErrorBanner" style="display:none; background:#3a1414; color:#ff9a9a; font-family:ui-monospace,monospace; font-size:12px; padding:8px 14px; border-bottom:1px solid #5a1f1f;"></div>
+<style>
+  :root{
+    --bg:#12141a;
+    --panel:#1b1e26;
+    --panel-2:#20232d;
+    --line:#2c303c;
+    --text:#e7e9ee;
+    --dim:#8b93a5;
+    --amber:#ffb020;
+    --amber-dim:#7a5518;
+    --signal:#4fd1c5;
+    --link:#7dc4ff;
+    --danger:#ef5a5a;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  #io-app{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    border-radius:10px;
+    overflow:hidden;
+    border:1px solid var(--line);
+    min-height:640px;
+    display:flex;
+    flex-direction:column;
+  }
+  .io-header{
+    background:linear-gradient(180deg,var(--panel-2),var(--panel));
+    border-bottom:1px solid var(--line);
+    padding:14px 18px;
+  }
+  .io-header-top{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    flex-wrap:wrap;
+  }
+  .io-brand{
+    display:flex;
+    align-items:center;
+    gap:9px;
+    font-family:var(--mono);
+    font-size:12px;
+    letter-spacing:.12em;
+    color:var(--dim);
+    text-transform:uppercase;
+    padding-right:12px;
+    border-right:1px solid var(--line);
+  }
+  .io-led{
+    width:8px;height:8px;border-radius:50%;
+    background:var(--amber);
+    box-shadow:0 0 8px 1px var(--amber);
+  }
+  .io-show-row{
+    display:flex;align-items:center;gap:8px;flex:1;flex-wrap:wrap;
+  }
+  select, .io-btn, input[type=text]{
+    font-family:var(--sans);
+    font-size:13px;
+  }
+  select{
+    background:var(--panel-2);
+    color:var(--text);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:7px 10px;
+    min-width:160px;
+  }
+  .io-btn{
+    background:var(--panel-2);
+    color:var(--text);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:7px 12px;
+    cursor:pointer;
+    white-space:nowrap;
+    transition:border-color .15s, background .15s;
+  }
+  .io-btn:hover{border-color:var(--amber-dim); background:#242835;}
+  .io-btn.primary{
+    background:var(--amber);
+    color:#1a1204;
+    border-color:var(--amber);
+    font-weight:600;
+  }
+  .io-btn.primary:hover{filter:brightness(1.08);}
+  .io-btn.danger{color:var(--danger); border-color:#3a2222;}
+  .io-btn.danger:hover{background:#2a1a1a; border-color:var(--danger);}
+  .io-status{
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--signal);
+    min-width:70px;
+    text-align:right;
+    opacity:0;
+    transition:opacity .3s;
+  }
+  .io-status.show{opacity:1;}
+
+  .io-tabs{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    margin-top:12px;
+    flex-wrap:wrap;
+  }
+  .io-tab{
+    display:flex;align-items:center;gap:6px;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-bottom:2px solid transparent;
+    border-radius:6px 6px 0 0;
+    padding:7px 12px;
+    cursor:pointer;
+    color:var(--dim);
+    font-size:13px;
+  }
+  .io-tab.active{
+    color:var(--text);
+    border-bottom:2px solid var(--amber);
+    background:#242835;
+  }
+  .io-tab input{
+    background:transparent;border:none;color:inherit;font-size:13px;
+    width:auto; max-width:170px; outline:none; font-family:var(--sans);
+  }
+  .io-tab-close{
+    color:var(--dim); font-size:14px; line-height:1; padding:0 2px;
+  }
+  .io-tab-close:hover{color:var(--danger);}
+  .io-tab-add{
+    color:var(--dim); border:1px dashed var(--line); border-radius:6px;
+    padding:7px 10px; cursor:pointer; font-size:13px;
+  }
+  .io-tab-add:hover{color:var(--amber); border-color:var(--amber-dim);}
+
+  .io-toolbar{
+    display:flex;align-items:center;gap:10px;
+    padding:12px 18px;
+    border-bottom:1px solid var(--line);
+    background:var(--panel);
+    flex-wrap:wrap;
+  }
+  .io-search{
+    flex:1; min-width:180px;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:8px 12px;
+    color:var(--text);
+    font-family:var(--mono);
+    font-size:13px;
+  }
+  .io-search::placeholder{color:var(--dim);}
+  .io-count{
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--dim);
+    white-space:nowrap;
+  }
+
+  .io-table-wrap{
+    flex:1;
+    overflow:auto;
+    padding:0 18px 18px;
+  }
+  table.io-table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:14px;
+  }
+  table.io-table thead th{
+    position:sticky; top:0;
+    background:var(--bg);
+    text-align:left;
+    font-size:11px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--dim);
+    padding:8px 10px;
+    border-bottom:1px solid var(--line);
+  }
+  table.io-table th.port-col{width:70px;}
+  table.io-table th.del-col{width:36px;}
+  table.io-table td{
+    padding:0;
+    border-bottom:1px solid #20232c;
+    vertical-align:middle;
+  }
+  table.io-table tr:hover td{background:#191c24;}
+  .cell-port{
+    font-family:var(--mono);
+    color:var(--amber);
+    padding:9px 10px;
+    font-size:13px;
+  }
+  .cell-edit{ padding:0; }
+  .cell-edit input, .cell-edit select{
+    width:100%;
+    background:transparent;
+    border:1px solid transparent;
+    color:var(--text);
+    padding:9px 10px;
+    font-size:13px;
+    font-family:var(--sans);
+    outline:none;
+    border-radius:4px;
+  }
+  .cell-edit select{ appearance:auto; cursor:pointer; }
+  .cell-edit input:hover, .cell-edit select:hover{border-color:var(--line);}
+  .cell-edit input:focus, .cell-edit select:focus{
+    border-color:var(--signal);
+    background:#161a22;
+  }
+  .cell-edit input::placeholder{color:#4a5063; font-style:italic;}
+  .cell-note{
+    font-size:11px; color:var(--dim); padding:0 10px 6px; font-style:italic;
+  }
+  .cell-linked{
+    display:flex; align-items:center; gap:8px;
+    padding:9px 10px;
+    color:var(--link);
+    font-size:13px;
+    background:#152430;
+  }
+  .cell-linked .chain{ font-size:12px; opacity:.8; }
+  .unlink-btn{
+    margin-left:auto;
+    background:none;border:1px solid #274257;color:var(--link);
+    border-radius:4px; font-size:10px; padding:3px 7px; cursor:pointer;
+    text-transform:uppercase; letter-spacing:.05em;
+  }
+  .unlink-btn:hover{background:#1c3446;}
+  .relink-btn{
+    background:none;border:1px solid var(--line);color:var(--dim);
+    border-radius:4px; font-size:10px; padding:3px 7px; cursor:pointer;
+    text-transform:uppercase; letter-spacing:.05em; margin-left:6px;
+  }
+  .relink-btn:hover{color:var(--link); border-color:#274257;}
+  .row-del{
+    background:none;border:none;color:var(--dim);cursor:pointer;
+    font-size:15px; padding:6px; opacity:.5;
+  }
+  .row-del:hover{color:var(--danger); opacity:1;}
+
+  .io-addrow{
+    margin-top:10px;
+    background:none;
+    border:1px dashed var(--line);
+    color:var(--dim);
+    border-radius:6px;
+    padding:8px 14px;
+    cursor:pointer;
+    font-size:13px;
+    width:100%;
+    text-align:center;
+  }
+  .io-addrow:hover{color:var(--amber); border-color:var(--amber-dim);}
+
+  .io-empty{
+    text-align:center;
+    color:var(--dim);
+    padding:60px 20px;
+    font-size:13px;
+  }
+
+  .io-modal-backdrop{
+    position:fixed; inset:0; background:rgba(0,0,0,.55);
+    display:flex; align-items:center; justify-content:center;
+    z-index:1000;
+  }
+  .io-modal{
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    width:min(480px, 92vw); max-height:80vh; display:flex; flex-direction:column;
+  }
+  .io-modal-head{
+    padding:14px 16px; border-bottom:1px solid var(--line);
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .io-modal-head h3{ margin:0; font-size:14px; color:var(--text); }
+  .io-modal-close{ background:none;border:none;color:var(--dim);font-size:18px;cursor:pointer; }
+  .io-modal-body{ padding:12px 16px; overflow:auto; }
+  .name-row{
+    display:flex; align-items:center; gap:8px; padding:6px 0;
+    border-bottom:1px solid #20232c;
+  }
+  .name-row input{
+    flex:1; background:var(--panel-2); border:1px solid var(--line); color:var(--text);
+    border-radius:5px; padding:6px 8px; font-size:13px;
+  }
+  .name-row button{
+    background:none;border:1px solid var(--line);color:var(--dim);
+    border-radius:5px; padding:5px 9px; cursor:pointer; font-size:12px;
+  }
+  .name-row button:hover{color:var(--danger); border-color:#3a2222;}
+  .io-modal-foot{
+    padding:12px 16px; border-top:1px solid var(--line);
+    display:flex; gap:8px;
+  }
+
+  @media (max-width:640px){
+    .io-header-top{flex-direction:column; align-items:stretch;}
+    .io-brand{border-right:none; border-bottom:1px solid var(--line); padding:0 0 8px;}
+    select{min-width:0; flex:1;}
+  }
+</style>
+
+<div id="io-app">
+  <div class="io-header">
+    <div class="io-header-top">
+      <div class="io-brand"><span class="io-led"></span>I&#47;O Router &amp; Switcher</div>
+      <div class="io-show-row">
+        <select id="showSelect"></select>
+        <button class="io-btn" id="btnNewShow" title="Start a new show from a blank list">New</button>
+        <button class="io-btn" id="btnDupShow" title="Duplicate the current show">Duplicate</button>
+        <button class="io-btn" id="btnRenameShow" title="Rename this show">Rename</button>
+        <button class="io-btn danger" id="btnDeleteShow" title="Delete this show">Delete</button>
+      </div>
+      <div class="io-show-row" style="flex:0;">
+        <button class="io-btn primary" id="btnManageNames">Manage Names</button>
+        <button class="io-btn" id="btnExportJson">Export JSON</button>
+        <button class="io-btn" id="btnExportCsv">Export CSV</button>
+        <button class="io-btn" id="btnImportJson">Import JSON</button>
+        <input type="file" id="fileImport" accept="application/json" style="display:none;">
+      </div>
+      <div class="io-status" id="ioStatus">Saved</div>
+    </div>
+    <div class="io-tabs" id="ioTabs"></div>
+  </div>
+
+  <div class="io-toolbar">
+    <input class="io-search" id="ioSearch" type="text" placeholder="Search port #, input, or output label&hellip;">
+    <div class="io-count" id="ioCount"></div>
+  </div>
+
+  <div class="io-table-wrap" id="ioTableWrap"></div>
+</div>
+
+<div id="modalRoot"></div>
+
+<script>
+(function(){
+  const SEED = {"router":[{"port":1,"input":"ATEM out 1","output":"Hyperdeck 1"},{"port":2,"input":"ATEM out 2","output":"Hyperdeck 2"},{"port":3,"input":"ATEM out 3","output":"Hyperdeck 3"},{"port":4,"input":"ATEM out 4","output":"Hyperdeck 4"},{"port":5,"input":"ATEM out 5","output":"Hyperdeck 5"},{"port":6,"input":"ATEM out 6","output":"Hyperdeck 6"},{"port":7,"input":"ATEM out 7","output":"Hyperdeck 7"},{"port":8,"input":"ATEM out 8","output":"Hyperdeck 8"},{"port":9,"input":"ATEM out 9","output":"Atomos 1"},{"port":10,"input":"ATEM out 10","output":"Atomos 2"},{"port":11,"input":"ATEM out 11","output":"Atomos 3"},{"port":12,"input":"ATEM out 12","output":"Atomos 4"},{"port":13,"input":"ATEM out 13","output":"Atomos 5"},{"port":14,"input":"ATEM out 14","output":"Atomos 6"},{"port":15,"input":"ATEM out 15","output":"Atomos 7"},{"port":16,"input":"ATEM out 16","output":"Atomos 8"},{"port":17,"input":"ATEM out 17","output":"Replay 1"},{"port":18,"input":"ATEM out 18","output":"Replay 2"},{"port":19,"input":"ATEM out 19","output":"Replay 3"},{"port":20,"input":"ATEM out 20","output":"Replay 4"},{"port":21,"input":"ATEM out 21","output":"ATEM in 21"},{"port":22,"input":"","output":"ATEM in 22"},{"port":23,"input":"","output":"ATEM in 23"},{"port":24,"input":"","output":"ATEM in 24"},{"port":25,"input":"ATEM MV 1","output":"ATEM in 25"},{"port":26,"input":"ATEM MV 2","output":"ATEM in 26"},{"port":27,"input":"ATEM MV 3","output":"DA 2"},{"port":28,"input":"ATEM MV 4","output":"DA 3"},{"port":29,"input":"Teranex 1 Out","output":"Teranex 1 In"},{"port":30,"input":"Teradek Prism Out RX1","output":"Teradek Slice In TX1"},{"port":31,"input":"Sonifex Out","output":"Sonifex In"},{"port":32,"input":"MV-C - Via Monitor Loop","output":"A-MV 1"},{"port":33,"input":"MV-D Via Monitor Loop","output":"A-MV 2"},{"port":34,"input":"Decimator MV Output","output":"A-MV 3"},{"port":35,"input":"MV16- A Out","output":"A-MV 4"},{"port":36,"input":"MV16- B Out ","output":"A-MV 5"},{"port":37,"input":"MV-E OUT","output":"A-MV 6"},{"port":38,"input":"Replay 1","output":"A-MV 7"},{"port":39,"input":"Replay 2","output":"A-MV 8"},{"port":40,"input":"CCU 5","output":"A-MV 9"},{"port":41,"input":"CCU 6","output":"A-MV 10"},{"port":42,"input":"","output":"A-MV 11"},{"port":43,"input":"DA- 1 Cam Return","output":"A-MV 12"},{"port":44,"input":"DA 2","output":"A-MV 13"},{"port":45,"input":"DA 2","output":"A-MV 14"},{"port":46,"input":"DA 2","output":"A-MV 15"},{"port":47,"input":"DA 3","output":"A-MV 16"},{"port":48,"input":"DA 3","output":"B-MV 1"},{"port":49,"input":"DA 3","output":"B-MV 2"},{"port":50,"input":"","output":"B-MV 3"},{"port":51,"input":"","output":"B-MV 4"},{"port":52,"input":"","output":"B-MV 5"},{"port":53,"input":"","output":"B-MV 6"},{"port":54,"input":"","output":"B-MV 7"},{"port":55,"input":"","output":"B-MV 8"},{"port":56,"input":"","output":"B-MV 9"},{"port":57,"input":"","output":"B-MV 10"},{"port":58,"input":"","output":"B-MV 11"},{"port":59,"input":"","output":"B-MV 12"},{"port":60,"input":"","output":"B-MV 13"},{"port":61,"input":"","output":"B-MV 14"},{"port":62,"input":"","output":"B-MV 15"},{"port":63,"input":"","output":"B-MV 16"},{"port":64,"input":"","output":"C-MV 1 - Shading Mon 1"},{"port":65,"input":"","output":"C-MV 2 - Shading Mon 1"},{"port":66,"input":"","output":"C-MV 3 - Shading Mon 1"},{"port":67,"input":"","output":"C-MV 4 - Shading Mon 1"},{"port":68,"input":"","output":"D-MV 1 - Shading Mon 2"},{"port":69,"input":"","output":"D-MV 2 - Shading Mon 2"},{"port":70,"input":"","output":"D-MV 3 - Shading Mon 2"},{"port":71,"input":"","output":"D-MV 4 - Shading Mon 2"},{"port":72,"input":"","output":"E-MV 1"},{"port":73,"input":"","output":"E-MV 2"},{"port":74,"input":"","output":"E-MV 3"},{"port":75,"input":"","output":"E-MV 4"},{"port":76,"input":"","output":"Production Monitor 1"},{"port":77,"input":"","output":"Production Monitor 2"},{"port":78,"input":"","output":"Production Monitor 3"},{"port":79,"input":"","output":"Production Monitor 4"},{"port":80,"input":"","output":"Production Monitor 5"},{"port":81,"input":"","output":"Production Monitor 6"},{"port":82,"input":"","output":"Production Monitor 7"},{"port":83,"input":"","output":"Production Monitor 8"},{"port":84,"input":"","output":"Production Monitor 9"},{"port":85,"input":"","output":"Production Monitor 10"},{"port":86,"input":"","output":"Playback Monitor 13"},{"port":87,"input":"","output":"Playback Monitor 14"},{"port":88,"input":"","output":"Audio Monitor 15"},{"port":89,"input":"","output":"Audio Monitor 16"},{"port":90,"input":"","output":"Teradek Slice In TX2"},{"port":91,"input":"","output":"Cam Return 1 DA 1"},{"port":92,"input":"","output":"Mux in 1"},{"port":93,"input":"","output":"Mux in 2"},{"port":94,"input":"","output":"Mux in 3"},{"port":95,"input":"","output":"Mux in 4"},{"port":96,"input":"","output":"Mux in 5"},{"port":97,"input":"","output":"Mux in 6"},{"port":98,"input":"","output":"Mux in 7"},{"port":99,"input":"","output":"Mux in 8"},{"port":100,"input":"","output":"Mux in 9"},{"port":101,"input":"","output":"Mux in 10"},{"port":102,"input":"","output":"Mux in 11"},{"port":103,"input":"","output":"Mux in 12"},{"port":104,"input":"","output":"Mux in 13"},{"port":105,"input":"","output":"Mux in 14"},{"port":106,"input":"","output":"Mux in 15"},{"port":107,"input":"","output":"Mux in 16"},{"port":108,"input":"Patch Panel","output":"Patch Panel"},{"port":109,"input":"Patch Panel","output":"Patch Panel"},{"port":110,"input":"Patch Panel","output":"Patch Panel"},{"port":111,"input":"Patch Panel","output":"Patch Panel"},{"port":112,"input":"Patch Panel","output":"Patch Panel"},{"port":113,"input":"Main I/O Panel","output":"Main I/O Panel"},{"port":114,"input":"Main I/O Panel","output":"Main I/O Panel"},{"port":115,"input":"Main I/O Panel","output":"Main I/O Panel"},{"port":116,"input":"Main I/O Panel","output":"Main I/O Panel"},{"port":117,"input":"Main I/O Panel","output":"Main I/O Panel"},{"port":118,"input":"","output":"Shading Scope"},{"port":119,"input":"","output":"TD Scope Top"},{"port":120,"input":"","output":"EIC Monitor"}],"switcherInputs":[{"port":1,"input":"CCU 1","note":"RTR in 1","linked":false},{"port":2,"input":"CCU 2","note":"RTR in 2","linked":false},{"port":3,"input":"CCU 3","note":"RTR in 3","linked":false},{"port":4,"input":"CCU 4","note":"RTR in 4","linked":false},{"port":5,"input":"Mux Out 1","note":"RTR in 5","linked":false},{"port":6,"input":"Mux Out 2","note":"RTR in 6","linked":false},{"port":7,"input":"Mux Out 3","note":"RTR in 7","linked":false},{"port":8,"input":"Mux Out 4","note":"RTR in 8","linked":false},{"port":9,"input":"Mux Out 5","note":"RTR in 9","linked":false},{"port":10,"input":"Mux Out 6","note":"RTR in 10","linked":false},{"port":11,"input":"Mux Out 7","note":"RTR in 11","linked":false},{"port":12,"input":"Mux Out 8","note":"RTR in 12","linked":false},{"port":13,"input":"Mux Out 9","note":"RTR in 13","linked":false},{"port":14,"input":"Mux Out 10","note":"RTR in 14","linked":false},{"port":15,"input":"Mux Out 11","note":"RTR in 15","linked":false},{"port":16,"input":"Mux Out 12","note":"RTR in 16","linked":false},{"port":17,"input":"Mux Out 13","note":"RTR in 17","linked":false},{"port":18,"input":"Mux Out 14","note":"RTR in 18","linked":false},{"port":19,"input":"Mux Out 15","note":"RTR in 19","linked":false},{"port":20,"input":"Mux Out 16","note":"RTR in 20","linked":false},{"port":21,"input":"RTR 21","note":"RTR in 21","linked":true,"linkPort":21},{"port":22,"input":"RTR 22","note":"TD Left Monitor 11","linked":true,"linkPort":22},{"port":23,"input":"RTR 23","note":"TD Right Monitor 12","linked":true,"linkPort":23},{"port":24,"input":"RTR 24","note":"Shading Mon 3","linked":true,"linkPort":24},{"port":25,"input":"RTR 25","note":"","linked":true,"linkPort":25},{"port":26,"input":"RTR 26","note":"","linked":true,"linkPort":26},{"port":27,"input":"Patch ","note":"","linked":false},{"port":28,"input":"Patch ","note":"","linked":false},{"port":29,"input":"Patch ","note":"","linked":false},{"port":30,"input":"PB-A1-X","note":"","linked":false},{"port":31,"input":"PB-A2","note":"","linked":false},{"port":32,"input":"PB-A3","note":"","linked":false},{"port":33,"input":"PB-B1- Red","note":"","linked":false},{"port":34,"input":"PB-B2","note":"","linked":false},{"port":35,"input":"PB-B3","note":"","linked":false},{"port":36,"input":"GPX-A1-Silver","note":"","linked":false},{"port":37,"input":"GPX-A2","note":"","linked":false},{"port":38,"input":"GPX-B1-Gold","note":"","linked":false},{"port":39,"input":"GPX-B2","note":"","linked":false},{"port":40,"input":"","note":"","linked":false}],"switcherOutputs":[{"port":1,"output":""},{"port":2,"output":""},{"port":3,"output":""},{"port":4,"output":""},{"port":5,"output":""},{"port":6,"output":""},{"port":7,"output":""},{"port":8,"output":""},{"port":9,"output":""},{"port":10,"output":""},{"port":11,"output":""},{"port":12,"output":""},{"port":13,"output":""},{"port":14,"output":""},{"port":15,"output":""},{"port":16,"output":""},{"port":17,"output":""},{"port":18,"output":""},{"port":19,"output":""},{"port":20,"output":""},{"port":21,"output":""},{"port":22,"output":""},{"port":23,"output":""},{"port":24,"output":""}],"sourceNames":["ATEM MV 1","ATEM MV 2","ATEM MV 3","ATEM MV 4","ATEM out 1","ATEM out 10","ATEM out 11","ATEM out 12","ATEM out 13","ATEM out 14","ATEM out 15","ATEM out 16","ATEM out 17","ATEM out 18","ATEM out 19","ATEM out 2","ATEM out 20","ATEM out 21","ATEM out 3","ATEM out 4","ATEM out 5","ATEM out 6","ATEM out 7","ATEM out 8","ATEM out 9","CCU 1","CCU 2","CCU 3","CCU 4","CCU 5","CCU 6","DA 2","DA 3","DA- 1 Cam Return","Decimator MV Output","GPX-A1-Silver","GPX-A2","GPX-B1-Gold","GPX-B2","Main I/O Panel","Mux Out 1","Mux Out 10","Mux Out 11","Mux Out 12","Mux Out 13","Mux Out 14","Mux Out 15","Mux Out 16","Mux Out 2","Mux Out 3","Mux Out 4","Mux Out 5","Mux Out 6","Mux Out 7","Mux Out 8","Mux Out 9","MV-C - Via Monitor Loop","MV-D Via Monitor Loop","MV-E OUT","MV16- A Out","MV16- B Out ","Patch ","Patch Panel","PB-A1-X","PB-A2","PB-A3","PB-B1- Red","PB-B2","PB-B3","Replay 1","Replay 2","RTR 21","RTR 22","RTR 23","RTR 24","RTR 25","RTR 26","Sonifex Out","Teradek Prism Out RX1","Teranex 1 Out"]};
+
+  const els = {
+    showSelect: document.getElementById('showSelect'),
+    btnNewShow: document.getElementById('btnNewShow'),
+    btnDupShow: document.getElementById('btnDupShow'),
+    btnRenameShow: document.getElementById('btnRenameShow'),
+    btnDeleteShow: document.getElementById('btnDeleteShow'),
+    btnManageNames: document.getElementById('btnManageNames'),
+    btnExportJson: document.getElementById('btnExportJson'),
+    btnExportCsv: document.getElementById('btnExportCsv'),
+    btnImportJson: document.getElementById('btnImportJson'),
+    fileImport: document.getElementById('fileImport'),
+    ioStatus: document.getElementById('ioStatus'),
+    ioTabs: document.getElementById('ioTabs'),
+    ioSearch: document.getElementById('ioSearch'),
+    ioCount: document.getElementById('ioCount'),
+    ioTableWrap: document.getElementById('ioTableWrap'),
+    modalRoot: document.getElementById('modalRoot'),
+  };
+
+  let state = {
+    shows: [],
+    currentShowId: null,
+    show: null,
+    activeListId: null,
+    search: '',
+  };
+
+  function uid(prefix){ return prefix + '_' + Math.random().toString(36).slice(2,9); }
+
+  // list.kind: 'router' | 'switcher-in' | 'switcher-out' | 'custom'
+  // router rows:      {port, input, output}
+  // switcher-in rows: {port, input, note, linked, linkPort}
+  // switcher-out rows:{port, output}
+  // custom rows:      {port, input, output}  (generic, input is dropdown)
+
+  function defaultShow(){
+    return {
+      id: uid('show'),
+      name: 'Default (As Imported)',
+      sourceNames: SEED.sourceNames.slice(),
+      lists: [
+        { id: uid('list'), kind: 'router', name: 'Router (1\u2013120)', rows: JSON.parse(JSON.stringify(SEED.router)) },
+        { id: uid('list'), kind: 'switcher-in', name: 'Switcher Inputs (1\u201340)', rows: JSON.parse(JSON.stringify(SEED.switcherInputs)) },
+        { id: uid('list'), kind: 'switcher-out', name: 'Switcher Outputs (1\u201324)', rows: JSON.parse(JSON.stringify(SEED.switcherOutputs)) },
+      ]
+    };
+  }
+
+  // --- Supabase-backed storage ---
+  // A "shows" table: id (text, pk), name (text), data (jsonb: {sourceNames, lists}), updated_at.
+  // See schema.sql. sb is created in the config block above this script.
+
+  async function dbListShows(){
+    const { data, error } = await sb.from('shows').select('id,name').order('name', { ascending: true });
+    if(error){ console.error(error); showDbError(error); return []; }
+    return data || [];
+  }
+  async function dbGetShow(id){
+    const { data, error } = await sb.from('shows').select('id,name,data').eq('id', id).maybeSingle();
+    if(error || !data) return null;
+    return { id: data.id, name: data.name, sourceNames: (data.data && data.data.sourceNames) || [], lists: (data.data && data.data.lists) || [] };
+  }
+  async function dbUpsertShow(show){
+    const { error } = await sb.from('shows').upsert({
+      id: show.id,
+      name: show.name,
+      data: { sourceNames: show.sourceNames, lists: show.lists },
+      updated_at: new Date().toISOString()
+    });
+    if(error){ console.error(error); showDbError(error); return false; }
+    return true;
+  }
+  async function dbDeleteShow(id){
+    const { error } = await sb.from('shows').delete().eq('id', id);
+    if(error){ console.error(error); showDbError(error); }
+  }
+
+  function showDbError(error){
+    flashStatus('Error');
+    const banner = document.getElementById('dbErrorBanner');
+    if(banner){
+      banner.style.display = 'block';
+      banner.textContent = 'Database error: ' + (error && error.message ? error.message : 'check console and your Supabase config.');
+    }
+  }
+
+  function flashStatus(text){
+    els.ioStatus.textContent = text;
+    els.ioStatus.classList.add('show');
+    clearTimeout(flashStatus._t);
+    flashStatus._t = setTimeout(()=> els.ioStatus.classList.remove('show'), 1400);
+  }
+
+  async function saveCurrentShow(){
+    if(!state.show) return;
+    const ok = await dbUpsertShow(state.show);
+    const idx = state.shows.find(s => s.id === state.show.id);
+    if(idx) idx.name = state.show.name;
+    if(ok) flashStatus('Saved');
+  }
+
+  async function loadIndex(){
+    let idx = await dbListShows();
+    if(!idx || !idx.length){
+      const d = defaultShow();
+      const ok = await dbUpsertShow(d);
+      idx = ok ? [{ id: d.id, name: d.name }] : [];
+    }
+    state.shows = idx;
+  }
+
+  async function loadShow(id){
+    let show = await dbGetShow(id);
+    if(!show){ show = defaultShow(); }
+    if(!show.sourceNames) show.sourceNames = [];
+    state.show = show;
+    state.currentShowId = show.id;
+    state.activeListId = show.lists[0] ? show.lists[0].id : null;
+  }
+
+  function renderShowSelect(){
+    els.showSelect.innerHTML = '';
+    state.shows.forEach(s=>{
+      const opt = document.createElement('option');
+      opt.value = s.id; opt.textContent = s.name;
+      if(s.id === state.currentShowId) opt.selected = true;
+      els.showSelect.appendChild(opt);
+    });
+  }
+
+  function renderTabs(){
+    els.ioTabs.innerHTML = '';
+    state.show.lists.forEach(list=>{
+      const tab = document.createElement('div');
+      tab.className = 'io-tab' + (list.id === state.activeListId ? ' active' : '');
+      const nameInput = document.createElement('input');
+      nameInput.value = list.name;
+      nameInput.size = Math.max(6, list.name.length);
+      nameInput.addEventListener('click', e => e.stopPropagation());
+      nameInput.addEventListener('change', async ()=>{
+        list.name = nameInput.value.trim() || list.name;
+        await saveCurrentShow();
+      });
+      tab.appendChild(nameInput);
+
+      if(state.show.lists.length > 1){
+        const close = document.createElement('span');
+        close.className = 'io-tab-close';
+        close.textContent = '\u00d7';
+        close.title = 'Delete this list';
+        close.addEventListener('click', async (e)=>{
+          e.stopPropagation();
+          if(!confirm('Delete list "' + list.name + '"? This cannot be undone.')) return;
+          state.show.lists = state.show.lists.filter(l => l.id !== list.id);
+          if(state.activeListId === list.id) state.activeListId = state.show.lists[0].id;
+          await saveCurrentShow();
+          renderAll();
+        });
+        tab.appendChild(close);
+      }
+
+      tab.addEventListener('click', ()=>{ state.activeListId = list.id; renderAll(); });
+      els.ioTabs.appendChild(tab);
+    });
+
+    const add = document.createElement('div');
+    add.className = 'io-tab-add';
+    add.textContent = '+ Add list';
+    add.title = 'Add a new I/O list (e.g. for another device)';
+    add.addEventListener('click', async ()=>{
+      const name = prompt('Name for the new list (e.g. "Audio Router 1\u201364"):', 'New List');
+      if(!name) return;
+      const list = { id: uid('list'), kind: 'custom', name: name.trim(), rows: [] };
+      state.show.lists.push(list);
+      state.activeListId = list.id;
+      await saveCurrentShow();
+      renderAll();
+    });
+    els.ioTabs.appendChild(add);
+  }
+
+  function activeList(){
+    return state.show.lists.find(l => l.id === state.activeListId) || null;
+  }
+
+  function routerList(){
+    return state.show.lists.find(l => l.kind === 'router') || null;
+  }
+
+  function routerInputForPort(port){
+    const rl = routerList();
+    if(!rl) return null;
+    const row = rl.rows.find(r => Number(r.port) === Number(port));
+    return row ? (row.input || '') : null;
+  }
+
+  function filteredRows(list){
+    if(!list) return [];
+    const q = state.search.trim().toLowerCase();
+    if(!q) return list.rows;
+    return list.rows.filter(r =>
+      String(r.port).includes(q) ||
+      (r.input||'').toLowerCase().includes(q) ||
+      (r.output||'').toLowerCase().includes(q) ||
+      (r.note||'').toLowerCase().includes(q)
+    );
+  }
+
+  function makeDropdown(currentValue){
+    const select = document.createElement('select');
+    const blank = document.createElement('option');
+    blank.value = ''; blank.textContent = '\u2014 unassigned \u2014';
+    select.appendChild(blank);
+    let found = false;
+    state.show.sourceNames.forEach(name=>{
+      const opt = document.createElement('option');
+      opt.value = name; opt.textContent = name;
+      if(name === currentValue){ opt.selected = true; found = true; }
+      select.appendChild(opt);
+    });
+    if(currentValue && !found){
+      const opt = document.createElement('option');
+      opt.value = currentValue; opt.textContent = currentValue + ' (not in list)';
+      opt.selected = true;
+      select.appendChild(opt);
+    }
+    return select;
+  }
+
+  function renderTable(){
+    const list = activeList();
+    els.ioTableWrap.innerHTML = '';
+
+    if(!list){
+      els.ioTableWrap.innerHTML = '<div class="io-empty">No list selected. Add one with "+ Add list" above.</div>';
+      els.ioCount.textContent = '';
+      return;
+    }
+
+    const rows = filteredRows(list);
+    els.ioCount.textContent = rows.length + ' / ' + list.rows.length + ' ports';
+
+    if(!list.rows.length){
+      const empty = document.createElement('div');
+      empty.className = 'io-empty';
+      empty.textContent = 'This list is empty. Use "Add port" below to start building it.';
+      els.ioTableWrap.appendChild(empty);
+    } else {
+      const table = document.createElement('table');
+      table.className = 'io-table';
+
+      const showInput = list.kind !== 'switcher-out';
+      const showOutput = list.kind === 'router' || list.kind === 'switcher-out' || list.kind === 'custom';
+
+      let head = '<thead><tr><th class="port-col">Port</th>';
+      if(showInput) head += '<th>Input</th>';
+      if(showOutput) head += '<th>Output</th>';
+      head += '<th class="del-col"></th></tr></thead>';
+      table.innerHTML = head;
+
+      const tbody = document.createElement('tbody');
+
+      rows.forEach(row=>{
+        const tr = document.createElement('tr');
+
+        const tdPort = document.createElement('td');
+        tdPort.className = 'cell-port';
+        tdPort.textContent = row.port;
+        tr.appendChild(tdPort);
+
+        if(showInput){
+          const td = document.createElement('td');
+          td.className = 'cell-edit';
+
+          if(row.linked){
+            const wrap = document.createElement('div');
+            wrap.className = 'cell-linked';
+            const live = routerInputForPort(row.linkPort);
+            const chain = document.createElement('span');
+            chain.className = 'chain';
+            chain.textContent = '\u26d3';
+            wrap.appendChild(chain);
+            const val = document.createElement('span');
+            val.textContent = (live && live.length) ? live : '\u2014 unassigned on router \u2014';
+            wrap.appendChild(val);
+            const unlink = document.createElement('button');
+            unlink.className = 'unlink-btn';
+            unlink.textContent = 'Unlink';
+            unlink.title = 'Stop following Router port ' + row.linkPort + ' and set this input manually';
+            unlink.addEventListener('click', async ()=>{
+              row.linked = false;
+              row.input = live || '';
+              await saveCurrentShow();
+              renderAll();
+            });
+            wrap.appendChild(unlink);
+            td.appendChild(wrap);
+            if(row.note){
+              const note = document.createElement('div');
+              note.className = 'cell-note';
+              note.textContent = row.note;
+              // note goes in same cell for linked rows
+            }
+          } else {
+            const select = makeDropdown(row.input);
+            select.addEventListener('change', async ()=>{
+              row.input = select.value;
+              await saveCurrentShow();
+            });
+            td.appendChild(select);
+
+            if(list.kind === 'switcher-in'){
+              const relink = document.createElement('button');
+              // only show relink for rows that originally could link (21-26 range in switcher-in)
+            }
+          }
+
+          if(row.note && !row.linked){
+            const note = document.createElement('div');
+            note.className = 'cell-note';
+            note.textContent = row.note;
+            td.appendChild(note);
+          } else if(row.note && row.linked){
+            const note = document.createElement('div');
+            note.className = 'cell-note';
+            note.textContent = row.note;
+            td.appendChild(note);
+          }
+
+          tr.appendChild(td);
+        }
+
+        if(showOutput){
+          const td = document.createElement('td');
+          td.className = 'cell-edit';
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.value = row.output || '';
+          input.placeholder = '\u2014';
+          input.addEventListener('change', async ()=>{
+            row.output = input.value;
+            await saveCurrentShow();
+          });
+          td.appendChild(input);
+          tr.appendChild(td);
+        }
+
+        const tdDel = document.createElement('td');
+        const delBtn = document.createElement('button');
+        delBtn.className = 'row-del';
+        delBtn.textContent = '\u00d7';
+        delBtn.title = 'Delete this port row';
+        delBtn.addEventListener('click', async ()=>{
+          list.rows = list.rows.filter(r => r !== row);
+          await saveCurrentShow();
+          renderAll();
+        });
+        tdDel.appendChild(delBtn);
+        tr.appendChild(tdDel);
+
+        tbody.appendChild(tr);
+      });
+
+      table.appendChild(tbody);
+      els.ioTableWrap.appendChild(table);
+    }
+
+    const addRow = document.createElement('button');
+    addRow.className = 'io-addrow';
+    addRow.textContent = '+ Add port';
+    addRow.addEventListener('click', async ()=>{
+      const maxPort = list.rows.reduce((m,r)=> Math.max(m, Number(r.port)||0), 0);
+      const base = { port: maxPort + 1 };
+      if(list.kind === 'switcher-out'){ base.output = ''; }
+      else { base.input = ''; base.output = ''; }
+      list.rows.push(base);
+      await saveCurrentShow();
+      renderAll();
+    });
+    els.ioTableWrap.appendChild(addRow);
+  }
+
+  function renderAll(){
+    renderShowSelect();
+    renderTabs();
+    renderTable();
+  }
+
+  // --- Manage Names modal ---
+  function openManageNames(){
+    els.modalRoot.innerHTML = '';
+    const backdrop = document.createElement('div');
+    backdrop.className = 'io-modal-backdrop';
+    backdrop.addEventListener('click', (e)=>{ if(e.target === backdrop) closeModal(); });
+
+    const modal = document.createElement('div');
+    modal.className = 'io-modal';
+
+    const head = document.createElement('div');
+    head.className = 'io-modal-head';
+    head.innerHTML = '<h3>Source Names</h3>';
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'io-modal-close';
+    closeBtn.textContent = '\u00d7';
+    closeBtn.addEventListener('click', closeModal);
+    head.appendChild(closeBtn);
+    modal.appendChild(head);
+
+    const body = document.createElement('div');
+    body.className = 'io-modal-body';
+    modal.appendChild(body);
+
+    function renderNameRows(){
+      body.innerHTML = '<p style="color:var(--dim); font-size:12px; margin-top:0;">Rename a source here and every dropdown using it updates everywhere in this show.</p>';
+      state.show.sourceNames.forEach((name, i)=>{
+        const row = document.createElement('div');
+        row.className = 'name-row';
+        const input = document.createElement('input');
+        input.value = name;
+        input.addEventListener('change', async ()=>{
+          const oldName = name;
+          const newName = input.value.trim();
+          if(!newName || newName === oldName) { input.value = oldName; return; }
+          state.show.sourceNames[i] = newName;
+          state.show.lists.forEach(l=>{
+            l.rows.forEach(r=>{
+              if(r.input === oldName) r.input = newName;
+            });
+          });
+          await saveCurrentShow();
+          renderAll();
+          renderNameRows();
+        });
+        row.appendChild(input);
+
+        const del = document.createElement('button');
+        del.textContent = 'Remove';
+        del.addEventListener('click', async ()=>{
+          let usedCount = 0;
+          state.show.lists.forEach(l=> l.rows.forEach(r=>{ if(r.input === name) usedCount++; }));
+          if(usedCount > 0 && !confirm('"' + name + '" is used on ' + usedCount + ' row(s). Removing it will clear those to unassigned. Continue?')) return;
+          state.show.sourceNames = state.show.sourceNames.filter((n,idx)=> idx !== i);
+          state.show.lists.forEach(l=> l.rows.forEach(r=>{ if(r.input === name) r.input = ''; }));
+          await saveCurrentShow();
+          renderAll();
+          renderNameRows();
+        });
+        row.appendChild(del);
+        body.appendChild(row);
+      });
+    }
+    renderNameRows();
+
+    const foot = document.createElement('div');
+    foot.className = 'io-modal-foot';
+    const addInput = document.createElement('input');
+    addInput.type = 'text';
+    addInput.placeholder = 'New source name\u2026';
+    addInput.style.cssText = 'flex:1;background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:5px;padding:8px 10px;';
+    const addBtn = document.createElement('button');
+    addBtn.className = 'io-btn primary';
+    addBtn.textContent = 'Add';
+    async function doAdd(){
+      const v = addInput.value.trim();
+      if(!v) return;
+      if(state.show.sourceNames.includes(v)){ addInput.value=''; return; }
+      state.show.sourceNames.push(v);
+      addInput.value = '';
+      await saveCurrentShow();
+      renderAll();
+      renderNameRows();
+    }
+    addBtn.addEventListener('click', doAdd);
+    addInput.addEventListener('keydown', e=>{ if(e.key === 'Enter') doAdd(); });
+    foot.appendChild(addInput);
+    foot.appendChild(addBtn);
+    modal.appendChild(foot);
+
+    backdrop.appendChild(modal);
+    els.modalRoot.appendChild(backdrop);
+  }
+  function closeModal(){ els.modalRoot.innerHTML = ''; }
+
+  // --- Events ---
+  els.btnManageNames.addEventListener('click', openManageNames);
+
+  els.showSelect.addEventListener('change', async ()=>{
+    await loadShow(els.showSelect.value);
+    renderAll();
+  });
+
+  els.btnNewShow.addEventListener('click', async ()=>{
+    const name = prompt('Name for the new show:', 'New Show');
+    if(!name) return;
+    const show = { id: uid('show'), name: name.trim(), sourceNames: [], lists: [{ id: uid('list'), kind:'custom', name: 'Router', rows: [] }] };
+    state.shows.push({ id: show.id, name: show.name });
+    state.show = show;
+    state.currentShowId = show.id;
+    state.activeListId = show.lists[0].id;
+    await saveCurrentShow();
+    renderAll();
+  });
+
+  els.btnDupShow.addEventListener('click', async ()=>{
+    const name = prompt('Name for the duplicate:', state.show.name + ' (copy)');
+    if(!name) return;
+    const copy = JSON.parse(JSON.stringify(state.show));
+    copy.id = uid('show');
+    copy.name = name.trim();
+    copy.lists.forEach(l=>{ l.id = uid('list'); });
+    state.shows.push({ id: copy.id, name: copy.name });
+    state.show = copy;
+    state.currentShowId = copy.id;
+    state.activeListId = copy.lists[0] ? copy.lists[0].id : null;
+    await saveCurrentShow();
+    renderAll();
+  });
+
+  els.btnRenameShow.addEventListener('click', async ()=>{
+    const name = prompt('Rename show:', state.show.name);
+    if(!name) return;
+    state.show.name = name.trim();
+    await saveCurrentShow();
+    renderAll();
+  });
+
+  els.btnDeleteShow.addEventListener('click', async ()=>{
+    if(state.shows.length <= 1){
+      alert('You need at least one show. Create another before deleting this one.');
+      return;
+    }
+    if(!confirm('Delete show "' + state.show.name + '"? This cannot be undone.')) return;
+    await dbDeleteShow(state.show.id);
+    state.shows = state.shows.filter(s => s.id !== state.show.id);
+    await loadShow(state.shows[0].id);
+    renderAll();
+  });
+
+  function download(filename, text){
+    const blob = new Blob([text], {type:'text/plain'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function resolvedShowForExport(){
+    // materialize linked switcher-input values so exports are self-contained
+    const copy = JSON.parse(JSON.stringify(state.show));
+    copy.lists.forEach(l=>{
+      if(l.kind === 'switcher-in'){
+        l.rows.forEach(r=>{
+          if(r.linked){
+            const live = routerInputForPort(r.linkPort);
+            r.input = live || '';
+          }
+        });
+      }
+    });
+    return copy;
+  }
+
+  els.btnExportJson.addEventListener('click', ()=>{
+    download((state.show.name || 'show').replace(/[^\w\-]+/g,'_') + '.json', JSON.stringify(resolvedShowForExport(), null, 2));
+  });
+
+  els.btnExportCsv.addEventListener('click', ()=>{
+    let lines = ['List,Port,Input,Output'];
+    const show = resolvedShowForExport();
+    show.lists.forEach(list=>{
+      list.rows.forEach(r=>{
+        const esc = v => '"' + String(v==null?'':v).replace(/"/g,'""') + '"';
+        lines.push([esc(list.name), esc(r.port), esc(r.input||''), esc(r.output||'')].join(','));
+      });
+    });
+    download((state.show.name || 'show').replace(/[^\w\-]+/g,'_') + '.csv', lines.join('\n'));
+  });
+
+  els.btnImportJson.addEventListener('click', ()=> els.fileImport.click());
+  els.fileImport.addEventListener('change', (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = async ()=>{
+      try{
+        const imported = JSON.parse(reader.result);
+        if(!imported.lists) throw new Error('bad format');
+        imported.id = uid('show');
+        if(!imported.sourceNames) imported.sourceNames = [];
+        imported.lists.forEach(l => { l.id = l.id || uid('list'); if(!l.kind) l.kind = 'custom'; });
+        if(!imported.name) imported.name = file.name.replace(/\.json$/,'');
+        state.shows.push({ id: imported.id, name: imported.name });
+        state.show = imported;
+        state.currentShowId = imported.id;
+        state.activeListId = imported.lists[0] ? imported.lists[0].id : null;
+        await saveCurrentShow();
+        renderAll();
+      }catch(err){
+        alert('Could not import that file \u2014 expected a JSON file exported from this tool.');
+      }
+      els.fileImport.value = '';
+    };
+    reader.readAsText(file);
+  });
+
+  let searchDebounce;
+  els.ioSearch.addEventListener('input', ()=>{
+    clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(()=>{ state.search = els.ioSearch.value; renderTable(); }, 80);
+  });
+
+  // --- Init ---
+  (async function init(){
+    if(SUPABASE_URL === "YOUR_SUPABASE_URL" || SUPABASE_ANON_KEY === "YOUR_SUPABASE_ANON_KEY"){
+      const banner = document.getElementById('dbErrorBanner');
+      banner.style.display = 'block';
+      banner.textContent = 'Not configured yet: set SUPABASE_URL and SUPABASE_ANON_KEY at the top of index.html (see README.md).';
+      return;
+    }
+    await loadIndex();
+    if(!state.shows.length){ return; }
+    await loadShow(state.shows[0].id);
+    renderAll();
+  })();
+})();
+</script>
+
+</body>
+</html>
