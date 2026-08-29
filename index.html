@@ -12,7 +12,7 @@
     // publishable key. Access control is enforced by Row Level Security
     // policies on the "shows" table (see schema.sql), not by hiding this key.
     const SUPABASE_URL = "https://idlynkandrzounddjpqy.supabase.co";
-    const SUPABASE_ANON_KEY = "sb_publishable_3OLOfvQ5YEz2fTy0Fz7VMw_ab45T6Mh";
+    const SUPABASE_ANON_KEY = "sb_publishable_3OLOfvQ5YEz2fTy0Fz7VMw_ab45T6MhF";
     const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   </script>
 </head>
@@ -57,18 +57,7 @@
     gap:14px;
     flex-wrap:wrap;
   }
-  .io-brand{
-    display:flex;
-    align-items:center;
-    gap:9px;
-    font-family:var(--mono);
-    font-size:12px;
-    letter-spacing:.12em;
-    color:var(--dim);
-    text-transform:uppercase;
-    padding-right:12px;
-    border-right:1px solid var(--line);
-  }
+    .io-brand{ border-radius:8px; overflow:hidden; width:280px; max-width:100%; } .io-brand img{ display:block; width:100%; height:auto; }
   .io-led{
     width:8px;height:8px;border-radius:50%;
     background:var(--amber);
@@ -323,7 +312,7 @@
 
   @media (max-width:640px){
     .io-header-top{flex-direction:column; align-items:stretch;}
-    .io-brand{border-right:none; border-bottom:1px solid var(--line); padding:0 0 8px;}
+    .io-brand{width:220px;}
     select{min-width:0; flex:1;}
   }
 </style>
@@ -331,7 +320,7 @@
 <div id="io-app">
   <div class="io-header">
     <div class="io-header-top">
-      <div class="io-brand"><span class="io-led"></span>I&#47;O Router &amp; Switcher</div>
+        <div class="io-brand"><img src="blackbird-banner.png" alt="Blackbird Tech Info"></div>
       <div class="io-show-row" style="flex:0;">
         <button class="io-btn primary" id="btnManageNames">Manage Names</button>
         <button class="io-btn" id="btnExportJson">Export JSON</button>
