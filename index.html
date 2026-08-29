@@ -12,7 +12,7 @@
     // publishable key. Access control is enforced by Row Level Security
     // policies on the "shows" table (see schema.sql), not by hiding this key.
     const SUPABASE_URL = "https://idlynkandrzounddjpqy.supabase.co";
-    const SUPABASE_ANON_KEY = "sb_publishable_3OLOfvQ5YEz2fTy0Fz7VMw_ab45T6Mh";
+    const SUPABASE_ANON_KEY = "sb_publishable_3OL0fvQ5YEz2fTy0Fz7VMw_ab45T6Mh";
     const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   </script>
 </head>
@@ -332,13 +332,6 @@
   <div class="io-header">
     <div class="io-header-top">
       <div class="io-brand"><span class="io-led"></span>I&#47;O Router &amp; Switcher</div>
-      <div class="io-show-row">
-        <select id="showSelect"></select>
-        <button class="io-btn" id="btnNewShow" title="Start a new show from a blank list">New</button>
-        <button class="io-btn" id="btnDupShow" title="Duplicate the current show">Duplicate</button>
-        <button class="io-btn" id="btnRenameShow" title="Rename this show">Rename</button>
-        <button class="io-btn danger" id="btnDeleteShow" title="Delete this show">Delete</button>
-      </div>
       <div class="io-show-row" style="flex:0;">
         <button class="io-btn primary" id="btnManageNames">Manage Names</button>
         <button class="io-btn" id="btnExportJson">Export JSON</button>
@@ -363,14 +356,9 @@
 
 <script>
 (function(){
-  const SEED = {"router":[{"port":1,"input":"ATEM out 1","output":"Hyperdeck 1"},{"port":2,"input":"ATEM out 2","output":"Hyperdeck 2"},{"port":3,"input":"ATEM out 3","output":"Hyperdeck 3"},{"port":4,"input":"ATEM out 4","output":"Hyperdeck 4"},{"port":5,"input":"ATEM out 5","output":"Hyperdeck 5"},{"port":6,"input":"ATEM out 6","output":"Hyperdeck 6"},{"port":7,"input":"ATEM out 7","output":"Hyperdeck 7"},{"port":8,"input":"ATEM out 8","output":"Hyperdeck 8"},{"port":9,"input":"ATEM out 9","output":"Atomos 1"},{"port":10,"input":"ATEM out 10","output":"Atomos 2"},{"port":11,"input":"ATEM out 11","output":"Atomos 3"},{"port":12,"input":"ATEM out 12","output":"Atomos 4"},{"port":13,"input":"ATEM out 13","output":"Atomos 5"},{"port":14,"input":"ATEM out 14","output":"Atomos 6"},{"port":15,"input":"ATEM out 15","output":"Atomos 7"},{"port":16,"input":"ATEM out 16","output":"Atomos 8"},{"port":17,"input":"ATEM out 17","output":"Replay 1"},{"port":18,"input":"ATEM out 18","output":"Replay 2"},{"port":19,"input":"ATEM out 19","output":"Replay 3"},{"port":20,"input":"ATEM out 20","output":"Replay 4"},{"port":21,"input":"ATEM out 21","output":"ATEM in 21"},{"port":22,"input":"","output":"ATEM in 22"},{"port":23,"input":"","output":"ATEM in 23"},{"port":24,"input":"","output":"ATEM in 24"},{"port":25,"input":"ATEM MV 1","output":"ATEM in 25"},{"port":26,"input":"ATEM MV 2","output":"ATEM in 26"},{"port":27,"input":"ATEM MV 3","output":"DA 2"},{"port":28,"input":"ATEM MV 4","output":"DA 3"},{"port":29,"input":"Teranex 1 Out","output":"Teranex 1 In"},{"port":30,"input":"Teradek Prism Out RX1","output":"Teradek Slice In TX1"},{"port":31,"input":"Sonifex Out","output":"Sonifex In"},{"port":32,"input":"MV-C - Via Monitor Loop","output":"A-MV 1"},{"port":33,"input":"MV-D Via Monitor Loop","output":"A-MV 2"},{"port":34,"input":"Decimator MV Output","output":"A-MV 3"},{"port":35,"input":"MV16- A Out","output":"A-MV 4"},{"port":36,"input":"MV16- B Out ","output":"A-MV 5"},{"port":37,"input":"MV-E OUT","output":"A-MV 6"},{"port":38,"input":"Replay 1","output":"A-MV 7"},{"port":39,"input":"Replay 2","output":"A-MV 8"},{"port":40,"input":"CCU 5","output":"A-MV 9"},{"port":41,"input":"CCU 6","output":"A-MV 10"},{"port":42,"input":"","output":"A-MV 11"},{"port":43,"input":"DA- 1 Cam Return","output":"A-MV 12"},{"port":44,"input":"DA 2","output":"A-MV 13"},{"port":45,"input":"DA 2","output":"A-MV 14"},{"port":46,"input":"DA 2","output":"A-MV 15"},{"port":47,"input":"DA 3","output":"A-MV 16"},{"port":48,"input":"DA 3","output":"B-MV 1"},{"port":49,"input":"DA 3","output":"B-MV 2"},{"port":50,"input":"","output":"B-MV 3"},{"port":51,"input":"","output":"B-MV 4"},{"port":52,"input":"","output":"B-MV 5"},{"port":53,"input":"","output":"B-MV 6"},{"port":54,"input":"","output":"B-MV 7"},{"port":55,"input":"","output":"B-MV 8"},{"port":56,"input":"","output":"B-MV 9"},{"port":57,"input":"","output":"B-MV 10"},{"port":58,"input":"","output":"B-MV 11"},{"port":59,"input":"","output":"B-MV 12"},{"port":60,"input":"","output":"B-MV 13"},{"port":61,"input":"","output":"B-MV 14"},{"port":62,"input":"","output":"B-MV 15"},{"port":63,"input":"","output":"B-MV 16"},{"port":64,"input":"","output":"C-MV 1 - Shading Mon 1"},{"port":65,"input":"","output":"C-MV 2 - Shading Mon 1"},{"port":66,"input":"","output":"C-MV 3 - Shading Mon 1"},{"port":67,"input":"","output":"C-MV 4 - Shading Mon 1"},{"port":68,"input":"","output":"D-MV 1 - Shading Mon 2"},{"port":69,"input":"","output":"D-MV 2 - Shading Mon 2"},{"port":70,"input":"","output":"D-MV 3 - Shading Mon 2"},{"port":71,"input":"","output":"D-MV 4 - Shading Mon 2"},{"port":72,"input":"","output":"E-MV 1"},{"port":73,"input":"","output":"E-MV 2"},{"port":74,"input":"","output":"E-MV 3"},{"port":75,"input":"","output":"E-MV 4"},{"port":76,"input":"","output":"Production Monitor 1"},{"port":77,"input":"","output":"Production Monitor 2"},{"port":78,"input":"","output":"Production Monitor 3"},{"port":79,"input":"","output":"Production Monitor 4"},{"port":80,"input":"","output":"Production Monitor 5"},{"port":81,"input":"","output":"Production Monitor 6"},{"port":82,"input":"","output":"Production Monitor 7"},{"port":83,"input":"","output":"Production Monitor 8"},{"port":84,"input":"","output":"Production Monitor 9"},{"port":85,"input":"","output":"Production Monitor 10"},{"port":86,"input":"","output":"Playback Monitor 13"},{"port":87,"input":"","output":"Playback Monitor 14"},{"port":88,"input":"","output":"Audio Monitor 15"},{"port":89,"input":"","output":"Audio Monitor 16"},{"port":90,"input":"","output":"Teradek Slice In TX2"},{"port":91,"input":"","output":"Cam Return 1 DA 1"},{"port":92,"input":"","output":"Mux in 1"},{"port":93,"input":"","output":"Mux in 2"},{"port":94,"input":"","output":"Mux in 3"},{"port":95,"input":"","output":"Mux in 4"},{"port":96,"input":"","output":"Mux in 5"},{"port":97,"input":"","output":"Mux in 6"},{"port":98,"input":"","output":"Mux in 7"},{"port":99,"input":"","output":"Mux in 8"},{"port":100,"input":"","output":"Mux in 9"},{"port":101,"input":"","output":"Mux in 10"},{"port":102,"input":"","output":"Mux in 11"},{"port":103,"input":"","output":"Mux in 12"},{"port":104,"input":"","output":"Mux in 13"},{"port":105,"input":"","output":"Mux in 14"},{"port":106,"input":"","output":"Mux in 15"},{"port":107,"input":"","output":"Mux in 16"},{"port":108,"input":"Patch Panel","output":"Patch Panel"},{"port":109,"input":"Patch Panel","output":"Patch Panel"},{"port":110,"input":"Patch Panel","output":"Patch Panel"},{"port":111,"input":"Patch Panel","output":"Patch Panel"},{"port":112,"input":"Patch Panel","output":"Patch Panel"},{"port":113,"input":"Main I/O Panel","output":"Main I/O Panel"},{"port":114,"input":"Main I/O Panel","output":"Main I/O Panel"},{"port":115,"input":"Main I/O Panel","output":"Main I/O Panel"},{"port":116,"input":"Main I/O Panel","output":"Main I/O Panel"},{"port":117,"input":"Main I/O Panel","output":"Main I/O Panel"},{"port":118,"input":"","output":"Shading Scope"},{"port":119,"input":"","output":"TD Scope Top"},{"port":120,"input":"","output":"EIC Monitor"}],"switcher":[{"port":1,"input":"CCU 1","note":""  ,"linked":false,"output":""},{"port":2,"input":"CCU 2","note":""  ,"linked":false,"output":""},{"port":3,"input":"CCU 3","note":""  ,"linked":false,"output":""},{"port":4,"input":"CCU 4","note":""  ,"linked":false,"output":""},{"port":5,"input":"Mux Out 1","note":""  ,"linked":false,"output":""},{"port":6,"input":"Mux Out 2","note":""  ,"linked":false,"output":""},{"port":7,"input":"Mux Out 3","note":""  ,"linked":false,"output":""},{"port":8,"input":"Mux Out 4","note":""  ,"linked":false,"output":""},{"port":9,"input":"Mux Out 5","note":""  ,"linked":false,"output":""},{"port":10,"input":"Mux Out 6","note":""  ,"linked":false,"output":""},{"port":11,"input":"Mux Out 7","note":""  ,"linked":false,"output":""},{"port":12,"input":"Mux Out 8","note":""  ,"linked":false,"output":""},{"port":13,"input":"Mux Out 9","note":""  ,"linked":false,"output":""},{"port":14,"input":"Mux Out 10","note":""  ,"linked":false,"output":""},{"port":15,"input":"Mux Out 11","note":""  ,"linked":false,"output":""},{"port":16,"input":"Mux Out 12","note":""  ,"linked":false,"output":""},{"port":17,"input":"Mux Out 13","note":""  ,"linked":false,"output":""},{"port":18,"input":"Mux Out 14","note":""  ,"linked":false,"output":""},{"port":19,"input":"Mux Out 15","note":""  ,"linked":false,"output":""},{"port":20,"input":"Mux Out 16","note":""  ,"linked":false,"output":""},{"port":21,"input":"RTR 21","note":""  ,"linked":true,"linkPort":21,"output":""},{"port":22,"input":"RTR 22","note":"TD Left Monitor 11","linked":true,"linkPort":22,"output":""},{"port":23,"input":"RTR 23","note":"TD Right Monitor 12","linked":true,"linkPort":23,"output":""},{"port":24,"input":"RTR 24","note":"Shading Mon 3","linked":true,"linkPort":24,"output":""},{"port":25,"input":"RTR 25","note":"","linked":true,"linkPort":25,"output":""},{"port":26,"input":"RTR 26","note":"","linked":true,"linkPort":26,"output":""},{"port":27,"input":"Patch ","note":"","linked":false,"output":""},{"port":28,"input":"Patch ","note":"","linked":false,"output":""},{"port":29,"input":"Patch ","note":"","linked":false,"output":""},{"port":30,"input":"PB-A1-X","note":"","linked":false,"output":""},{"port":31,"input":"PB-A2","note":"","linked":false,"output":""},{"port":32,"input":"PB-A3","note":"","linked":false,"output":""},{"port":33,"input":"PB-B1- Red","note":"","linked":false,"output":""},{"port":34,"input":"PB-B2","note":"","linked":false,"output":""},{"port":35,"input":"PB-B3","note":"","linked":false,"output":""},{"port":36,"input":"GPX-A1-Silver","note":"","linked":false,"output":""},{"port":37,"input":"GPX-A2","note":"","linked":false,"output":""},{"port":38,"input":"GPX-B1-Gold","note":"","linked":false,"output":""},{"port":39,"input":"GPX-B2","note":"","linked":false,"output":""},{"port":40,"input":"","note":"","linked":false,"output":""}],"sourceNames":["ATEM MV 1","ATEM MV 2","ATEM MV 3","ATEM MV 4","ATEM out 1","ATEM out 10","ATEM out 11","ATEM out 12","ATEM out 13","ATEM out 14","ATEM out 15","ATEM out 16","ATEM out 17","ATEM out 18","ATEM out 19","ATEM out 2","ATEM out 20","ATEM out 21","ATEM out 3","ATEM out 4","ATEM out 5","ATEM out 6","ATEM out 7","ATEM out 8","ATEM out 9","CCU 1","CCU 2","CCU 3","CCU 4","CCU 5","CCU 6","DA 2","DA 3","DA- 1 Cam Return","Decimator MV Output","GPX-A1-Silver","GPX-A2","GPX-B1-Gold","GPX-B2","Main I/O Panel","Mux Out 1","Mux Out 10","Mux Out 11","Mux Out 12","Mux Out 13","Mux Out 14","Mux Out 15","Mux Out 16","Mux Out 2","Mux Out 3","Mux Out 4","Mux Out 5","Mux Out 6","Mux Out 7","Mux Out 8","Mux Out 9","MV-C - Via Monitor Loop","MV-D Via Monitor Loop","MV-E OUT","MV16- A Out","MV16- B Out ","Patch ","Patch Panel","PB-A1-X","PB-A2","PB-A3","PB-B1- Red","PB-B2","PB-B3","Replay 1","Replay 2","RTR 21","RTR 22","RTR 23","RTR 24","RTR 25","RTR 26","Sonifex Out","Teradek Prism Out RX1","Teranex 1 Out"]};
+  const SEED = {"router":[{"port":1,"input":"ATEM out 1","output":"Hyperdeck 1"},{"port":2,"input":"ATEM out 2","output":"Hyperdeck 2"},{"port":3,"input":"ATEM out 3","output":"Hyperdeck 3"},{"port":4,"input":"ATEM out 4","output":"Hyperdeck 4"},{"port":5,"input":"ATEM out 5","output":"Hyperdeck 5"},{"port":6,"input":"ATEM out 6","output":"Hyperdeck 6"},{"port":7,"input":"ATEM out 7","output":"Hyperdeck 7"},{"port":8,"input":"ATEM out 8","output":"Hyperdeck 8"},{"port":9,"input":"ATEM out 9","output":"Atomos 1"},{"port":10,"input":"ATEM out 10","output":"Atomos 2"},{"port":11,"input":"ATEM out 11","output":"Atomos 3"},{"port":12,"input":"ATEM out 12","output":"Atomos 4"},{"port":13,"input":"ATEM out 13","output":"Atomos 5"},{"port":14,"input":"ATEM out 14","output":"Atomos 6"},{"port":15,"input":"ATEM out 15","output":"Atomos 7"},{"port":16,"input":"ATEM out 16","output":"Atomos 8"},{"port":17,"input":"ATEM out 17","output":"Replay 1"},{"port":18,"input":"ATEM out 18","output":"Replay 2"},{"port":19,"input":"ATEM out 19","output":"Replay 3"},{"port":20,"input":"ATEM out 20","output":"Replay 4"},{"port":21,"input":"ATEM out 21","output":"ATEM in 21"},{"port":22,"input":"","output":"ATEM in 22"},{"port":23,"input":"","output":"ATEM in 23"},{"port":24,"input":"","output":"ATEM in 24"},{"port":25,"input":"ATEM MV 1","output":"ATEM in 25"},{"port":26,"input":"ATEM MV 2","output":"ATEM in 26"},{"port":27,"input":"ATEM MV 3","output":"DA 2"},{"port":28,"input":"ATEM MV 4","output":"DA 3"},{"port":29,"input":"Teranex 1 Out","output":"Teranex 1 In"},{"port":30,"input":"Teradek Prism Out RX1","output":"Teradek Slice In TX1"},{"port":31,"input":"Sonifex Out","output":"Sonifex In"},{"port":32,"input":"MV-C - Via Monitor Loop","output":"A-MV 1"},{"port":33,"input":"MV-D Via Monitor Loop","output":"A-MV 2"},{"port":34,"input":"Decimator MV Output","output":"A-MV 3"},{"port":35,"input":"MV16- A Out","output":"A-MV 4"},{"port":36,"input":"MV16- B Out ","output":"A-MV 5"},{"port":37,"input":"MV-E OUT","output":"A-MV 6"},{"port":38,"input":"Replay 1","output":"A-MV 7"},{"port":39,"input":"Replay 2","output":"A-MV 8"},{"port":40,"input":"CCU 5","output":"A-MV 9"},{"port":41,"input":"CCU 6","output":"A-MV 10"},{"port":42,"input":"","output":"A-MV 11"},{"port":43,"input":"DA- 1 Cam Return","output":"A-MV 12"},{"port":44,"input":"DA 2","output":"A-MV 13"},{"port":45,"input":"DA 2","output":"A-MV 14"},{"port":46,"input":"DA 2","output":"A-MV 15"},{"port":47,"input":"DA 3","output":"A-MV 16"},{"port":48,"input":"DA 3","output":"B-MV 1"},{"port":49,"input":"DA 3","output":"B-MV 2"},{"port":50,"input":"","output":"B-MV 3"},{"port":51,"input":"","output":"B-MV 4"},{"port":52,"input":"","output":"B-MV 5"},{"port":53,"input":"","output":"B-MV 6"},{"port":54,"input":"","output":"B-MV 7"},{"port":55,"input":"","output":"B-MV 8"},{"port":56,"input":"","output":"B-MV 9"},{"port":57,"input":"","output":"B-MV 10"},{"port":58,"input":"","output":"B-MV 11"},{"port":59,"input":"","output":"B-MV 12"},{"port":60,"input":"","output":"B-MV 13"},{"port":61,"input":"","output":"B-MV 14"},{"port":62,"input":"","output":"B-MV 15"},{"port":63,"input":"","output":"B-MV 16"},{"port":64,"input":"","output":"C-MV 1 - Shading Mon 1"},{"port":65,"input":"","output":"C-MV 2 - Shading Mon 1"},{"port":66,"input":"","output":"C-MV 3 - Shading Mon 1"},{"port":67,"input":"","output":"C-MV 4 - Shading Mon 1"},{"port":68,"input":"","output":"D-MV 1 - Shading Mon 2"},{"port":69,"input":"","output":"D-MV 2 - Shading Mon 2"},{"port":70,"input":"","output":"D-MV 3 - Shading Mon 2"},{"port":71,"input":"","output":"D-MV 4 - Shading Mon 2"},{"port":72,"input":"","output":"E-MV 1"},{"port":73,"input":"","output":"E-MV 2"},{"port":74,"input":"","output":"E-MV 3"},{"port":75,"input":"","output":"E-MV 4"},{"port":76,"input":"","output":"Production Monitor 1"},{"port":77,"input":"","output":"Production Monitor 2"},{"port":78,"input":"","output":"Production Monitor 3"},{"port":79,"input":"","output":"Production Monitor 4"},{"port":80,"input":"","output":"Production Monitor 5"},{"port":81,"input":"","output":"Production Monitor 6"},{"port":82,"input":"","output":"Production Monitor 7"},{"port":83,"input":"","output":"Production Monitor 8"},{"port":84,"input":"","output":"Production Monitor 9"},{"port":85,"input":"","output":"Production Monitor 10"},{"port":86,"input":"","output":"Playback Monitor 13"},{"port":87,"input":"","output":"Playback Monitor 14"},{"port":88,"input":"","output":"Audio Monitor 15"},{"port":89,"input":"","output":"Audio Monitor 16"},{"port":90,"input":"","output":"Teradek Slice In TX2"},{"port":91,"input":"","output":"Cam Return 1 DA 1"},{"port":92,"input":"","output":"Mux in 1"},{"port":93,"input":"","output":"Mux in 2"},{"port":94,"input":"","output":"Mux in 3"},{"port":95,"input":"","output":"Mux in 4"},{"port":96,"input":"","output":"Mux in 5"},{"port":97,"input":"","output":"Mux in 6"},{"port":98,"input":"","output":"Mux in 7"},{"port":99,"input":"","output":"Mux in 8"},{"port":100,"input":"","output":"Mux in 9"},{"port":101,"input":"","output":"Mux in 10"},{"port":102,"input":"","output":"Mux in 11"},{"port":103,"input":"","output":"Mux in 12"},{"port":104,"input":"","output":"Mux in 13"},{"port":105,"input":"","output":"Mux in 14"},{"port":106,"input":"","output":"Mux in 15"},{"port":107,"input":"","output":"Mux in 16"},{"port":108,"input":"Patch Panel","output":"Patch Panel"},{"port":109,"input":"Patch Panel","output":"Patch Panel"},{"port":110,"input":"Patch Panel","output":"Patch Panel"},{"port":111,"input":"Patch Panel","output":"Patch Panel"},{"port":112,"input":"Patch Panel","output":"Patch Panel"},{"port":113,"input":"Main I/O Panel","output":"Main I/O Panel"},{"port":114,"input":"Main I/O Panel","output":"Main I/O Panel"},{"port":115,"input":"Main I/O Panel","output":"Main I/O Panel"},{"port":116,"input":"Main I/O Panel","output":"Main I/O Panel"},{"port":117,"input":"Main I/O Panel","output":"Main I/O Panel"},{"port":118,"input":"","output":"Shading Scope"},{"port":119,"input":"","output":"TD Scope Top"},{"port":120,"input":"","output":"EIC Monitor"}],"switcher":[{"port":1,"input":"CCU 1","note":"","linked":false,"output":""},{"port":2,"input":"CCU 2","note":"","linked":false,"output":""},{"port":3,"input":"CCU 3","note":"","linked":false,"output":""},{"port":4,"input":"CCU 4","note":"","linked":false,"output":""},{"port":5,"input":"Mux Out 1","note":"","linked":false,"output":""},{"port":6,"input":"Mux Out 2","note":"","linked":false,"output":""},{"port":7,"input":"Mux Out 3","note":"","linked":false,"output":""},{"port":8,"input":"Mux Out 4","note":"","linked":false,"output":""},{"port":9,"input":"Mux Out 5","note":"","linked":false,"output":""},{"port":10,"input":"Mux Out 6","note":"","linked":false,"output":""},{"port":11,"input":"Mux Out 7","note":"","linked":false,"output":""},{"port":12,"input":"Mux Out 8","note":"","linked":false,"output":""},{"port":13,"input":"Mux Out 9","note":"","linked":false,"output":""},{"port":14,"input":"Mux Out 10","note":"","linked":false,"output":""},{"port":15,"input":"Mux Out 11","note":"","linked":false,"output":""},{"port":16,"input":"Mux Out 12","note":"","linked":false,"output":""},{"port":17,"input":"Mux Out 13","note":"","linked":false,"output":""},{"port":18,"input":"Mux Out 14","note":"","linked":false,"output":""},{"port":19,"input":"Mux Out 15","note":"","linked":false,"output":""},{"port":20,"input":"Mux Out 16","note":"","linked":false,"output":""},{"port":21,"input":"RTR 21","note":"","linked":true,"linkPort":21,"output":""},{"port":22,"input":"RTR 22","note":"TD Left Monitor 11","linked":true,"linkPort":22,"output":""},{"port":23,"input":"RTR 23","note":"TD Right Monitor 12","linked":true,"linkPort":23,"output":""},{"port":24,"input":"RTR 24","note":"Shading Mon 3","linked":true,"linkPort":24,"output":""},{"port":25,"input":"RTR 25","note":"","linked":true,"linkPort":25,"output":""},{"port":26,"input":"RTR 26","note":"","linked":true,"linkPort":26,"output":""},{"port":27,"input":"Patch ","note":"","linked":false,"output":""},{"port":28,"input":"Patch ","note":"","linked":false,"output":""},{"port":29,"input":"Patch ","note":"","linked":false,"output":""},{"port":30,"input":"PB-A1-X","note":"","linked":false,"output":""},{"port":31,"input":"PB-A2","note":"","linked":false,"output":""},{"port":32,"input":"PB-A3","note":"","linked":false,"output":""},{"port":33,"input":"PB-B1- Red","note":"","linked":false,"output":""},{"port":34,"input":"PB-B2","note":"","linked":false,"output":""},{"port":35,"input":"PB-B3","note":"","linked":false,"output":""},{"port":36,"input":"GPX-A1-Silver","note":"","linked":false,"output":""},{"port":37,"input":"GPX-A2","note":"","linked":false,"output":""},{"port":38,"input":"GPX-B1-Gold","note":"","linked":false,"output":""},{"port":39,"input":"GPX-B2","note":"","linked":false,"output":""},{"port":40,"input":"","note":"","linked":false,"output":""}],"sourceNames":["ATEM MV 1","ATEM MV 2","ATEM MV 3","ATEM MV 4","ATEM out 1","ATEM out 10","ATEM out 11","ATEM out 12","ATEM out 13","ATEM out 14","ATEM out 15","ATEM out 16","ATEM out 17","ATEM out 18","ATEM out 19","ATEM out 2","ATEM out 20","ATEM out 21","ATEM out 3","ATEM out 4","ATEM out 5","ATEM out 6","ATEM out 7","ATEM out 8","ATEM out 9","CCU 1","CCU 2","CCU 3","CCU 4","CCU 5","CCU 6","DA 2","DA 3","DA- 1 Cam Return","Decimator MV Output","GPX-A1-Silver","GPX-A2","GPX-B1-Gold","GPX-B2","Main I/O Panel","Mux Out 1","Mux Out 10","Mux Out 11","Mux Out 12","Mux Out 13","Mux Out 14","Mux Out 15","Mux Out 16","Mux Out 2","Mux Out 3","Mux Out 4","Mux Out 5","Mux Out 6","Mux Out 7","Mux Out 8","Mux Out 9","MV-C - Via Monitor Loop","MV-D Via Monitor Loop","MV-E OUT","MV16- A Out","MV16- B Out ","Patch ","Patch Panel","PB-A1-X","PB-A2","PB-A3","PB-B1- Red","PB-B2","PB-B3","Replay 1","Replay 2","RTR 21","RTR 22","RTR 23","RTR 24","RTR 25","RTR 26","Sonifex Out","Teradek Prism Out RX1","Teranex 1 Out"]};
 
   const els = {
-    showSelect: document.getElementById('showSelect'),
-    btnNewShow: document.getElementById('btnNewShow'),
-    btnDupShow: document.getElementById('btnDupShow'),
-    btnRenameShow: document.getElementById('btnRenameShow'),
-    btnDeleteShow: document.getElementById('btnDeleteShow'),
     btnManageNames: document.getElementById('btnManageNames'),
     btnExportJson: document.getElementById('btnExportJson'),
     btnExportCsv: document.getElementById('btnExportCsv'),
@@ -385,8 +373,6 @@
   };
 
   let state = {
-    shows: [],
-    currentShowId: null,
     show: null,
     activeListId: null,
     search: '',
@@ -402,8 +388,7 @@
 
   function defaultShow(){
     return {
-      id: uid('show'),
-      name: 'Default (As Imported)',
+      id: 'main',
       sourceNames: SEED.sourceNames.slice(),
       lists: [
         { id: uid('list'), kind: 'router', name: 'Router (1\u2013120)', rows: JSON.parse(JSON.stringify(SEED.router)) },
@@ -413,32 +398,24 @@
   }
 
   // --- Supabase-backed storage ---
-  // A "shows" table: id (text, pk), name (text), data (jsonb: {sourceNames, lists}), updated_at.
-  // See schema.sql. sb is created in the config block above this script.
+  // A single fixed row (id: 'main') in the "shows" table holds everything:
+  // data (jsonb: {sourceNames, lists}), updated_at. See schema.sql.
 
-  async function dbListShows(){
-    const { data, error } = await sb.from('shows').select('id,name').order('name', { ascending: true });
-    if(error){ console.error(error); showDbError(error); return []; }
-    return data || [];
-  }
-  async function dbGetShow(id){
-    const { data, error } = await sb.from('shows').select('id,name,data').eq('id', id).maybeSingle();
-    if(error || !data) return null;
-    return { id: data.id, name: data.name, sourceNames: (data.data && data.data.sourceNames) || [], lists: (data.data && data.data.lists) || [] };
+  async function dbGetShow(){
+    const { data, error } = await sb.from('shows').select('id,data').eq('id', 'main').maybeSingle();
+    if(error){ console.error(error); showDbError(error); return null; }
+    if(!data) return null;
+    return { id: 'main', sourceNames: (data.data && data.data.sourceNames) || [], lists: (data.data && data.data.lists) || [] };
   }
   async function dbUpsertShow(show){
     const { error } = await sb.from('shows').upsert({
-      id: show.id,
-      name: show.name,
+      id: 'main',
+      name: 'main',
       data: { sourceNames: show.sourceNames, lists: show.lists },
       updated_at: new Date().toISOString()
     });
     if(error){ console.error(error); showDbError(error); return false; }
     return true;
-  }
-  async function dbDeleteShow(id){
-    const { error } = await sb.from('shows').delete().eq('id', id);
-    if(error){ console.error(error); showDbError(error); }
   }
 
   function showDbError(error){
@@ -460,39 +437,20 @@
   async function saveCurrentShow(){
     if(!state.show) return;
     const ok = await dbUpsertShow(state.show);
-    const idx = state.shows.find(s => s.id === state.show.id);
-    if(idx) idx.name = state.show.name;
     if(ok) flashStatus('Saved');
   }
 
-  async function loadIndex(){
-    let idx = await dbListShows();
-    if(!idx || !idx.length){
-      const d = defaultShow();
-      const ok = await dbUpsertShow(d);
-      idx = ok ? [{ id: d.id, name: d.name }] : [];
+  async function loadShow(){
+    let show = await dbGetShow();
+    if(!show){
+      show = defaultShow();
+      await dbUpsertShow(show);
     }
-    state.shows = idx;
-  }
-
-  async function loadShow(id){
-    let show = await dbGetShow(id);
-    if(!show){ show = defaultShow(); }
     if(!show.sourceNames) show.sourceNames = [];
     state.show = show;
-    state.currentShowId = show.id;
     state.activeListId = show.lists[0] ? show.lists[0].id : null;
   }
 
-  function renderShowSelect(){
-    els.showSelect.innerHTML = '';
-    state.shows.forEach(s=>{
-      const opt = document.createElement('option');
-      opt.value = s.id; opt.textContent = s.name;
-      if(s.id === state.currentShowId) opt.selected = true;
-      els.showSelect.appendChild(opt);
-    });
-  }
 
   function renderTabs(){
     els.ioTabs.innerHTML = '';
@@ -742,7 +700,6 @@
   }
 
   function renderAll(){
-    renderShowSelect();
     renderTabs();
     renderTable();
   }
@@ -845,58 +802,6 @@
   // --- Events ---
   els.btnManageNames.addEventListener('click', openManageNames);
 
-  els.showSelect.addEventListener('change', async ()=>{
-    await loadShow(els.showSelect.value);
-    renderAll();
-  });
-
-  els.btnNewShow.addEventListener('click', async ()=>{
-    const name = prompt('Name for the new show:', 'New Show');
-    if(!name) return;
-    const show = { id: uid('show'), name: name.trim(), sourceNames: [], lists: [{ id: uid('list'), kind:'custom', name: 'Router', rows: [] }] };
-    state.shows.push({ id: show.id, name: show.name });
-    state.show = show;
-    state.currentShowId = show.id;
-    state.activeListId = show.lists[0].id;
-    await saveCurrentShow();
-    renderAll();
-  });
-
-  els.btnDupShow.addEventListener('click', async ()=>{
-    const name = prompt('Name for the duplicate:', state.show.name + ' (copy)');
-    if(!name) return;
-    const copy = JSON.parse(JSON.stringify(state.show));
-    copy.id = uid('show');
-    copy.name = name.trim();
-    copy.lists.forEach(l=>{ l.id = uid('list'); });
-    state.shows.push({ id: copy.id, name: copy.name });
-    state.show = copy;
-    state.currentShowId = copy.id;
-    state.activeListId = copy.lists[0] ? copy.lists[0].id : null;
-    await saveCurrentShow();
-    renderAll();
-  });
-
-  els.btnRenameShow.addEventListener('click', async ()=>{
-    const name = prompt('Rename show:', state.show.name);
-    if(!name) return;
-    state.show.name = name.trim();
-    await saveCurrentShow();
-    renderAll();
-  });
-
-  els.btnDeleteShow.addEventListener('click', async ()=>{
-    if(state.shows.length <= 1){
-      alert('You need at least one show. Create another before deleting this one.');
-      return;
-    }
-    if(!confirm('Delete show "' + state.show.name + '"? This cannot be undone.')) return;
-    await dbDeleteShow(state.show.id);
-    state.shows = state.shows.filter(s => s.id !== state.show.id);
-    await loadShow(state.shows[0].id);
-    renderAll();
-  });
-
   function download(filename, text){
     const blob = new Blob([text], {type:'text/plain'});
     const url = URL.createObjectURL(blob);
@@ -921,7 +826,7 @@
   }
 
   els.btnExportJson.addEventListener('click', ()=>{
-    download((state.show.name || 'show').replace(/[^\w\-]+/g,'_') + '.json', JSON.stringify(resolvedShowForExport(), null, 2));
+    download('router-switcher-io.json', JSON.stringify(resolvedShowForExport(), null, 2));
   });
 
   els.btnExportCsv.addEventListener('click', ()=>{
@@ -933,7 +838,7 @@
         lines.push([esc(list.name), esc(r.port), esc(r.input||''), esc(r.output||'')].join(','));
       });
     });
-    download((state.show.name || 'show').replace(/[^\w\-]+/g,'_') + '.csv', lines.join('\n'));
+    download('router-switcher-io.csv', lines.join('\n'));
   });
 
   els.btnImportJson.addEventListener('click', ()=> els.fileImport.click());
@@ -945,13 +850,11 @@
       try{
         const imported = JSON.parse(reader.result);
         if(!imported.lists) throw new Error('bad format');
-        imported.id = uid('show');
+        if(!confirm('Import will replace everything currently in the list. Continue?')) return;
+        imported.id = 'main';
         if(!imported.sourceNames) imported.sourceNames = [];
         imported.lists.forEach(l => { l.id = l.id || uid('list'); if(!l.kind) l.kind = 'custom'; });
-        if(!imported.name) imported.name = file.name.replace(/\.json$/,'');
-        state.shows.push({ id: imported.id, name: imported.name });
         state.show = imported;
-        state.currentShowId = imported.id;
         state.activeListId = imported.lists[0] ? imported.lists[0].id : null;
         await saveCurrentShow();
         renderAll();
@@ -977,9 +880,7 @@
       banner.textContent = 'Not configured yet: set SUPABASE_URL and SUPABASE_ANON_KEY at the top of index.html (see README.md).';
       return;
     }
-    await loadIndex();
-    if(!state.shows.length){ return; }
-    await loadShow(state.shows[0].id);
+    await loadShow();
     renderAll();
   })();
 })();
