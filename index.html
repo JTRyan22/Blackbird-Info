@@ -445,7 +445,7 @@
     blank.value = ''; blank.textContent = '\u2014 unassigned \u2014';
     select.appendChild(blank);
     let found = false;
-    state.show.sourceNames.forEach(name=>{
+    const sortedNames = state.show.sourceNames.slice().sort((a,b)=> a.localeCompare(b, undefined, {numeric:true, sensitivity:'base'})); sortedNames.forEach(name=>{
       const opt = document.createElement('option');
       opt.value = name; opt.textContent = name;
       if(name === currentValue){ opt.selected = true; found = true; }
