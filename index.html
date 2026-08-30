@@ -201,13 +201,6 @@
     background:#152430;
   }
   .cell-linked .chain{ font-size:12px; opacity:.8; }
-  .unlink-btn{
-    margin-left:auto;
-    background:none;border:1px solid #274257;color:var(--link);
-    border-radius:4px; font-size:10px; padding:3px 7px; cursor:pointer;
-    text-transform:uppercase; letter-spacing:.05em;
-  }
-  .unlink-btn:hover{background:#1c3446;}
   .relink-btn{
     background:none;border:1px solid var(--line);color:var(--dim);
     border-radius:4px; font-size:10px; padding:3px 7px; cursor:pointer;
@@ -511,7 +504,7 @@
         tdPort.textContent = row.port;
         tr.appendChild(tdPort);
 
-        function buildLinkedCell(kind, port, onUnlink){
+        function buildLinkedCell(kind, port){
           const wrap = document.createElement('div');
           wrap.className = 'cell-linked';
           const live = listInputForPort(kind, port);
@@ -522,14 +515,6 @@
           const val = document.createElement('span');
           val.textContent = (live && live.length) ? live : ('\u2014 unassigned on ' + listLabel(kind) + ' ' + port + ' \u2014');
           wrap.appendChild(val);
-          const unlink = document.createElement('button');
-          unlink.className = 'unlink-btn';
-          unlink.textContent = 'Unlink';
-          unlink.title = 'Stop following ' + listLabel(kind) + ' ' + port;
-          unlink.addEventListener('click', async ()=>{
-            await onUnlink(live || '');
-          });
-          wrap.appendChild(unlink);
           return wrap;
         }
 
@@ -539,12 +524,7 @@
 
           if(row.linked){
             const kind = row.linkKind || 'router';
-            td.appendChild(buildLinkedCell(kind, row.linkPort, async (live)=>{
-              row.linked = false;
-              row.input = live;
-              await saveCurrentShow();
-              renderAll();
-            }));
+            td.appendChild(buildLinkedCell(kind, row.linkPort));
           } else if(list.kind === 'stage-rack-a' || list.kind === 'stage-rack-b'){
             const textInput = document.createElement('input');
             textInput.type = 'text';
@@ -580,12 +560,7 @@
 
           if(row.outputLinked){
             const kind = row.outputLinkKind || 'router';
-            td.appendChild(buildLinkedCell(kind, row.outputLinkPort, async (live)=>{
-              row.outputLinked = false;
-              row.output = live;
-              await saveCurrentShow();
-              renderAll();
-            }));
+            td.appendChild(buildLinkedCell(kind, row.outputLinkPort));
           } else {
             const input = document.createElement('input');
             input.type = 'text';
