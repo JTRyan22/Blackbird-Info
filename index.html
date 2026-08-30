@@ -519,7 +519,7 @@
           chain.textContent = '\u26d3';
           wrap.appendChild(chain);
           const val = document.createElement('span');
-          val.textContent = (live && live.length) ? live : ('\u2014 unassigned on ' + listLabel(kind) + ' \u2014');
+          val.textContent = (live && live.length) ? live : ('\u2014 unassigned on ' + listLabel(kind) + ' port ' + port + ' \u2014');
           wrap.appendChild(val);
           const unlink = document.createElement('button');
           unlink.className = 'unlink-btn';
