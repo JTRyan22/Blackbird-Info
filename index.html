@@ -361,7 +361,7 @@
       tab.className = 'io-tab' + (list.id === state.activeListId ? ' active' : '');
       tab.title = 'Click to switch \u2014 double-click to rename';
       const nameSpan = document.createElement('span');
-      nameSpan.textContent = list.name;
+      nameSpan.textContent = list.name.replace(/\s*\([^)]*\)\s*$/, '');
       nameSpan.addEventListener('dblclick', async (e)=>{
         e.stopPropagation();
         const newName = prompt('Rename this list:', list.name);
