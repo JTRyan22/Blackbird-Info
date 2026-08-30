@@ -54,11 +54,6 @@
     flex-wrap:wrap;
   }
     .io-brand{ border-radius:8px; overflow:hidden; flex:1; max-width:100%; } .io-brand img{ display:block; width:100%; height:auto; }
-  .io-led{
-    width:8px;height:8px;border-radius:50%;
-    background:var(--amber);
-    box-shadow:0 0 8px 1px var(--amber);
-  }
   select, input[type=text]{
     font-family:var(--sans);
     font-size:13px;
@@ -96,10 +91,6 @@
     color:var(--text);
     border-bottom:2px solid var(--amber);
     background:#242835;
-  }
-  .io-tab input{
-    background:transparent;border:none;color:inherit;font-size:13px;
-    width:auto; max-width:170px; outline:none; font-family:var(--sans);
   }
 
   .io-subtabs{
@@ -218,12 +209,6 @@
     background:#152430;
   }
   .cell-linked .chain{ font-size:12px; opacity:.8; }
-  .relink-btn{
-    background:none;border:1px solid var(--line);color:var(--dim);
-    border-radius:4px; font-size:10px; padding:3px 7px; cursor:pointer;
-    text-transform:uppercase; letter-spacing:.05em; margin-left:6px;
-  }
-  .relink-btn:hover{color:var(--link); border-color:#274257;}
   .row-del{
     background:none;border:none;color:var(--dim);cursor:pointer;
     font-size:15px; padding:6px; opacity:.5;
@@ -299,15 +284,22 @@
 
   function uid(prefix){ return prefix + '_' + Math.random().toString(36).slice(2,9); }
 
-  // list.kind: 'router' | 'switcher' | 'stage-rack-a' | 'stage-rack-b' | 'io-panel' | 'custom'
-  // all render the same: Port, Input, Output
-  // router rows:       {port, input, output, [linked, linkKind, linkPort]}  -- normally the master list, but ports 113-117's Input follows I/O Panel
+  // list.kind: 'router' | 'switcher' | 'stage-rack-a' | 'stage-rack-b' | 'io-panel' |
+  //            'patch-panel' | 'switch-b' | 'switch-c' | 'switch-d'
+  // all render the same: Input, Output (Port column hidden except router/switcher,
+  // where port numbers are physically meaningful)
+  // router rows:       {port, input, output, [linked, linkKind, linkPort]}  -- normally the
+  //                     master list, but ports 108-117's Input follows I/O Panel/Patch Panel
   // switcher rows:      {port, input, note, linked, linkKind, linkPort, output}
-  // stage-rack rows:    {port, input, output, outputLinked, outputLinkKind, outputLinkPort}
-  // io-panel rows:      {port, input, output, outputLinked, outputLinkKind, outputLinkPort}  -- Input is plain editable (the real jack source), Output follows Router
-  // custom rows:        {port, input, output}  (generic, input is dropdown)
-  // linkKind/outputLinkKind name which list.kind to follow; older saved rows
-  // without linkKind default to 'router' for backward compatibility.
+  // stage-rack rows:    {port, input, output, group: 'mux'|'fiber-ties'|'network',
+  //                      [outputLinked, outputLinkKind, outputLinkPort], [vlanPort]}
+  // io-panel rows:      {port, input, output, [linked, linkKind, linkPort, linkField],
+  //                      [outputLinked, outputLinkKind, outputLinkPort, outputLinkField]}
+  // patch-panel rows:   {port, input, output, [linked, linkKind, linkPort]}
+  // switch-b/c/d rows:  {port, input, output, netSwitchPort}
+  // linkKind/outputLinkKind name which list.kind to follow; linkField/outputLinkField
+  // pick 'input' (default) or 'output' on the target row. Older saved rows without
+  // linkKind default to 'router' for backward compatibility.
 
   function defaultShow(){
     return {
@@ -316,8 +308,8 @@
       lists: [
         { id: uid('list'), kind: 'router', name: 'Router (1\u2013120)', rows: JSON.parse(JSON.stringify(SEED.router)) },
         { id: uid('list'), kind: 'switcher', name: 'Switcher (1\u201340)', rows: JSON.parse(JSON.stringify(SEED.switcher)) },
-        { id: uid('list'), kind: 'stage-rack-a', name: 'Stage Rack A (1\u201313)', rows: JSON.parse(JSON.stringify(SEED.stageRackA)) },
-        { id: uid('list'), kind: 'stage-rack-b', name: 'Stage Rack B (1\u201313)', rows: JSON.parse(JSON.stringify(SEED.stageRackB)) },
+        { id: uid('list'), kind: 'stage-rack-a', name: 'Stage Rack A', rows: JSON.parse(JSON.stringify(SEED.stageRackA)) },
+        { id: uid('list'), kind: 'stage-rack-b', name: 'Stage Rack B', rows: JSON.parse(JSON.stringify(SEED.stageRackB)) },
         { id: uid('list'), kind: 'io-panel', name: 'Main I/O Panel (1\u201360)', rows: JSON.parse(JSON.stringify(SEED.ioPanel)) },
         { id: uid('list'), kind: 'patch-panel', name: 'Patch Panel (1\u201380)', rows: JSON.parse(JSON.stringify(SEED.patchPanel)) },
         { id: uid('list'), kind: 'switch-b', name: 'Switch B', rows: JSON.parse(JSON.stringify(SEED.switchB)) },
@@ -441,10 +433,6 @@
     return row.input || '';
   }
 
-  function listInputForPort(kind, port){
-    return listFieldForPort(kind, port, 'input');
-  }
-
   function listLabel(kind){
     const l = listByKind(kind);
     if(!l) return kind;
@@ -559,6 +547,11 @@
       const empty = document.createElement('div');
       empty.className = 'io-empty';
       empty.textContent = 'This list is empty. Use "Add port" below to start building it.';
+      els.ioTableWrap.appendChild(empty);
+    } else if(!rows.length){
+      const empty = document.createElement('div');
+      empty.className = 'io-empty';
+      empty.textContent = 'No rows match your search.';
       els.ioTableWrap.appendChild(empty);
     } else {
       const table = document.createElement('table');
