@@ -433,6 +433,13 @@
     return row.input || '';
   }
 
+  function refLabelForPort(kind, port){
+    const source = listByKind(kind);
+    if(!source) return 'port ' + port;
+    const row = source.rows.find(r => Number(r.port) === Number(port));
+    return (row && row.output) ? row.output : 'port ' + port;
+  }
+
   function listLabel(kind){
     const l = listByKind(kind);
     if(!l) return kind;
@@ -592,6 +599,7 @@
           const val = document.createElement('span');
           val.textContent = (live && live.length) ? live : ('\u2014 unassigned on ' + listLabel(kind) + ' ' + port + ' \u2014');
           wrap.appendChild(val);
+          wrap.title = 'Following ' + listLabel(kind) + ' \u2014 ' + refLabelForPort(kind, port) + ' (' + (field === 'output' ? 'Output' : 'Input') + ')';
           return wrap;
         }
 
