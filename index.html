@@ -101,10 +101,6 @@
     background:transparent;border:none;color:inherit;font-size:13px;
     width:auto; max-width:170px; outline:none; font-family:var(--sans);
   }
-  .io-tab-close{
-    color:var(--dim); font-size:14px; line-height:1; padding:0 2px;
-  }
-  .io-tab-close:hover{color:var(--danger);}
   .io-tab-add{
     color:var(--dim); border:1px dashed var(--line); border-radius:6px;
     padding:7px 10px; cursor:pointer; font-size:13px;
@@ -375,22 +371,6 @@
         renderAll();
       });
       tab.appendChild(nameSpan);
-
-      if(state.show.lists.length > 1){
-        const close = document.createElement('span');
-        close.className = 'io-tab-close';
-        close.textContent = '\u00d7';
-        close.title = 'Delete this list';
-        close.addEventListener('click', async (e)=>{
-          e.stopPropagation();
-          if(!confirm('Delete list "' + list.name + '"? This cannot be undone.')) return;
-          state.show.lists = state.show.lists.filter(l => l.id !== list.id);
-          if(state.activeListId === list.id) state.activeListId = state.show.lists[0].id;
-          await saveCurrentShow();
-          renderAll();
-        });
-        tab.appendChild(close);
-      }
 
       tab.addEventListener('click', ()=>{ state.activeListId = list.id; renderAll(); });
       els.ioTabs.appendChild(tab);
