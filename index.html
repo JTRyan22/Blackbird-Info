@@ -433,7 +433,8 @@
 
   function listLabel(kind){
     const l = listByKind(kind);
-    return l ? l.name : kind;
+    if(!l) return kind;
+    return l.name.replace(/\s*\([^)]*\)\s*$/, '');
   }
 
   function filteredRows(list){
@@ -519,12 +520,12 @@
           chain.textContent = '\u26d3';
           wrap.appendChild(chain);
           const val = document.createElement('span');
-          val.textContent = (live && live.length) ? live : ('\u2014 unassigned on ' + listLabel(kind) + ' port ' + port + ' \u2014');
+          val.textContent = (live && live.length) ? live : ('\u2014 unassigned on ' + listLabel(kind) + ' ' + port + ' \u2014');
           wrap.appendChild(val);
           const unlink = document.createElement('button');
           unlink.className = 'unlink-btn';
           unlink.textContent = 'Unlink';
-          unlink.title = 'Stop following ' + listLabel(kind) + ' port ' + port;
+          unlink.title = 'Stop following ' + listLabel(kind) + ' ' + port;
           unlink.addEventListener('click', async ()=>{
             await onUnlink(live || '');
           });
