@@ -559,8 +559,10 @@
 
       const showInput = true;
       const showOutput = true;
+      const showPort = !(list.kind === 'stage-rack-a' || list.kind === 'stage-rack-b' || list.kind === 'io-panel' || list.kind === 'patch-panel');
 
-      let head = '<thead><tr><th class="port-col">Port</th>';
+      let head = '<thead><tr>';
+      if(showPort) head += '<th class="port-col">Port</th>';
       if(showInput) head += '<th>Input</th>';
       if(showOutput) head += '<th>Output</th>';
       head += '<th class="del-col"></th></tr></thead>';
@@ -571,10 +573,12 @@
       rows.forEach(row=>{
         const tr = document.createElement('tr');
 
-        const tdPort = document.createElement('td');
-        tdPort.className = 'cell-port';
-        tdPort.textContent = row.port;
-        tr.appendChild(tdPort);
+        if(showPort){
+          const tdPort = document.createElement('td');
+          tdPort.className = 'cell-port';
+          tdPort.textContent = row.port;
+          tr.appendChild(tdPort);
+        }
 
         function buildLinkedCell(kind, port, field){
           field = field || 'input';
