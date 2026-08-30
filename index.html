@@ -101,11 +101,6 @@
     background:transparent;border:none;color:inherit;font-size:13px;
     width:auto; max-width:170px; outline:none; font-family:var(--sans);
   }
-  .io-tab-add{
-    color:var(--dim); border:1px dashed var(--line); border-radius:6px;
-    padding:7px 10px; cursor:pointer; font-size:13px;
-  }
-  .io-tab-add:hover{color:var(--amber); border-color:var(--amber-dim);}
 
   .io-toolbar{
     display:flex;align-items:center;gap:10px;
@@ -375,21 +370,6 @@
       tab.addEventListener('click', ()=>{ state.activeListId = list.id; renderAll(); });
       els.ioTabs.appendChild(tab);
     });
-
-    const add = document.createElement('div');
-    add.className = 'io-tab-add';
-    add.textContent = '+ Add list';
-    add.title = 'Add a new I/O list (e.g. for another device)';
-    add.addEventListener('click', async ()=>{
-      const name = prompt('Name for the new list (e.g. "Audio Router 1\u201364"):', 'New List');
-      if(!name) return;
-      const list = { id: uid('list'), kind: 'custom', name: name.trim(), rows: [] };
-      state.show.lists.push(list);
-      state.activeListId = list.id;
-      await saveCurrentShow();
-      renderAll();
-    });
-    els.ioTabs.appendChild(add);
   }
 
   function activeList(){
