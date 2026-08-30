@@ -544,6 +544,16 @@
               await saveCurrentShow();
               renderAll();
             }));
+          } else if(list.kind === 'stage-rack-a' || list.kind === 'stage-rack-b'){
+            const textInput = document.createElement('input');
+            textInput.type = 'text';
+            textInput.value = row.input || '';
+            textInput.placeholder = '\u2014';
+            textInput.addEventListener('change', async ()=>{
+              row.input = textInput.value;
+              await saveCurrentShow();
+            });
+            td.appendChild(textInput);
           } else {
             const select = makeDropdown(row.input);
             select.addEventListener('change', async ()=>{
