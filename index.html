@@ -152,7 +152,7 @@
   table.io-table{
     width:100%;
     border-collapse:collapse;
-    margin-top:14px;
+    margin-top:0;
   }
   table.io-table thead th{
     position:sticky; top:0;
@@ -165,7 +165,7 @@
     padding:8px 10px;
     border-bottom:1px solid var(--line);
   }
-  table.io-table th.group-end, table.io-table td.group-end{ border-right:4px solid var(--amber-dim); }
+  table.io-table th.group-end, table.io-table td.group-end{ border-right:4px solid #20232c; }
   table.io-table th.port-col{width:70px;}
   table.io-table th.del-col{width:36px;}
   table.io-table td{
@@ -595,7 +595,8 @@
       if(showLabel) head += '<th class="group-end">Label</th>';
       if(showOutput) head += '<th>Output</th>';
       if(showSourceDest) head += '<th>Source</th><th>Destination</th>';
-      head += '<th class="del-col"></th></tr></thead>';
+      if(list.kind !== 'router') head += '<th class="del-col"></th>';
+      head += '</tr></thead>';
       table.innerHTML = head;
 
       const tbody = document.createElement('tbody');
@@ -740,18 +741,21 @@
           tr.appendChild(tdDest);
         }
 
-        const tdDel = document.createElement('td');
-        const delBtn = document.createElement('button');
-        delBtn.className = 'row-del';
-        delBtn.textContent = '\u00d7';
-        delBtn.title = 'Delete this port row';
-        delBtn.addEventListener('click', async ()=>{
-          list.rows = list.rows.filter(r => r !== row);
-          await saveCurrentShow();
-          renderAll();
-        });
-        tdDel.appendChild(delBtn);
-        tr.appendChild(tdDel);
+        const showDelete = (list.kind !== 'router');
+        if(showDelete){
+          const tdDel = document.createElement('td');
+          const delBtn = document.createElement('button');
+          delBtn.className = 'row-del';
+          delBtn.textContent = '\u00d7';
+          delBtn.title = 'Delete this port row';
+          delBtn.addEventListener('click', async ()=>{
+            list.rows = list.rows.filter(r => r !== row);
+            await saveCurrentShow();
+            renderAll();
+          });
+          tdDel.appendChild(delBtn);
+          tr.appendChild(tdDel);
+        }
 
         tbody.appendChild(tr);
       });
@@ -760,18 +764,20 @@
       els.ioTableWrap.appendChild(table);
     }
 
-    const addRow = document.createElement('button');
-    addRow.className = 'io-addrow';
-    addRow.textContent = '+ Add port';
-    addRow.addEventListener('click', async ()=>{
-      const maxPort = list.rows.reduce((m,r)=> Math.max(m, Number(r.port)||0), 0);
-      const newRow = { port: maxPort + 1, input: '', output: '' };
-      if(state.activeGroup && groupsForList(list).length > 1){ newRow.group = state.activeGroup; }
-      list.rows.push(newRow);
-      await saveCurrentShow();
-      renderAll();
-    });
-    els.ioTableWrap.appendChild(addRow);
+    if(list.kind !== 'router'){
+      const addRow = document.createElement('button');
+      addRow.className = 'io-addrow';
+      addRow.textContent = '+ Add port';
+      addRow.addEventListener('click', async ()=>{
+        const maxPort = list.rows.reduce((m,r)=> Math.max(m, Number(r.port)||0), 0);
+        const newRow = { port: maxPort + 1, input: '', output: '' };
+        if(state.activeGroup && groupsForList(list).length > 1){ newRow.group = state.activeGroup; }
+        list.rows.push(newRow);
+        await saveCurrentShow();
+        renderAll();
+      });
+      els.ioTableWrap.appendChild(addRow);
+    }
   }
 
   function renderAll(){
