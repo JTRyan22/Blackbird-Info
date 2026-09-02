@@ -700,16 +700,18 @@
       const table = document.createElement('table');
       table.className = 'io-table';
 
-      const showInput = true;
-      const showOutput = true;
       const isStageRack = (list.kind === 'stage-rack-a' || list.kind === 'stage-rack-b');
-      const stageRackLabelGroups = isStageRack && (state.activeGroup === 'mux' || state.activeGroup === 'fiber-ties');
+      const stageRackFiberTies = isStageRack && state.activeGroup === 'fiber-ties';
+      const stageRackMux = isStageRack && state.activeGroup === 'mux';
+      const stageRackLabelGroups = stageRackMux || stageRackFiberTies;
       const isIoPanel = (list.kind === 'io-panel');
       const ioPanelLabelGroups = isIoPanel && (state.activeGroup === 'fiber' || state.activeGroup === 'sdi');
       const isPatchPanel = (list.kind === 'patch-panel');
       const patchPanelLabelGroups = isPatchPanel && (state.activeGroup === 'fiber' || state.activeGroup === 'sdi');
+      const showInput = true;
+      const showOutput = !stageRackFiberTies;
       const showLabel = (list.kind === 'router' || list.kind === 'switcher' || stageRackLabelGroups || ioPanelLabelGroups || patchPanelLabelGroups);
-      const showLabel2 = (list.kind === 'switcher' || stageRackLabelGroups || ioPanelLabelGroups || patchPanelLabelGroups);
+      const showLabel2 = (list.kind === 'switcher' || stageRackMux || ioPanelLabelGroups || patchPanelLabelGroups);
       const showSourceDest = (list.kind === 'router');
       const showPort = !(list.kind === 'stage-rack-a' || list.kind === 'stage-rack-b' || list.kind === 'io-panel' || list.kind === 'patch-panel' || list.kind === 'switch-b' || list.kind === 'switch-c' || list.kind === 'switch-d');
       const showDelete = (list.kind !== 'router' && list.kind !== 'switcher' && !isStageRack && !isIoPanel && !isPatchPanel);
