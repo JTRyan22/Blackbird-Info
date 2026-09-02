@@ -563,9 +563,13 @@
     const values = new Set();
     if(rt){
       rt.rows.forEach(r=>{
+        const input = listFieldForPort('router', r.port, 'input');
         const label = listFieldForPort('router', r.port, 'label');
-        const effective = (label && label.length) ? label : listFieldForPort('router', r.port, 'input');
-        if(effective) values.add(effective);
+        let combined = '';
+        if(input && label) combined = input + ': ' + label;
+        else if(input) combined = input;
+        else if(label) combined = label;
+        if(combined) values.add(combined);
       });
     }
     const sorted = Array.from(values).sort((a,b)=> a.localeCompare(b, undefined, {numeric:true, sensitivity:'base'}));
