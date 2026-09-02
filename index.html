@@ -562,7 +562,11 @@
     const rt = listByKind('router');
     const values = new Set();
     if(rt){
-      rt.rows.forEach(r=>{ if(r.input) values.add(r.input); });
+      rt.rows.forEach(r=>{
+        const label = listFieldForPort('router', r.port, 'label');
+        const effective = (label && label.length) ? label : listFieldForPort('router', r.port, 'input');
+        if(effective) values.add(effective);
+      });
     }
     const sorted = Array.from(values).sort((a,b)=> a.localeCompare(b, undefined, {numeric:true, sensitivity:'base'}));
     return makeSelect(currentValue, sorted);
