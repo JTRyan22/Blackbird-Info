@@ -706,13 +706,14 @@
       const stageRackNetwork = isStageRack && state.activeGroup === 'network';
       const stageRackLabelGroups = stageRackMux || stageRackFiberTies;
       const isIoPanel = (list.kind === 'io-panel');
+      const ioPanelFiberOnly = isIoPanel && state.activeGroup === 'fiber';
       const ioPanelLabelGroups = isIoPanel && (state.activeGroup === 'fiber' || state.activeGroup === 'sdi');
       const isPatchPanel = (list.kind === 'patch-panel');
       const patchPanelLabelGroups = isPatchPanel && (state.activeGroup === 'fiber' || state.activeGroup === 'sdi');
       const showInput = true;
-      const showOutput = !stageRackFiberTies && !stageRackNetwork;
+      const showOutput = !stageRackFiberTies && !stageRackNetwork && !ioPanelFiberOnly;
       const showLabel = (list.kind === 'router' || list.kind === 'switcher' || stageRackLabelGroups || ioPanelLabelGroups || patchPanelLabelGroups);
-      const showLabel2 = (list.kind === 'switcher' || stageRackMux || ioPanelLabelGroups || patchPanelLabelGroups);
+      const showLabel2 = (list.kind === 'switcher' || stageRackMux || (ioPanelLabelGroups && !ioPanelFiberOnly) || patchPanelLabelGroups);
       const showSourceDest = (list.kind === 'router');
       const showPort = !(list.kind === 'stage-rack-a' || list.kind === 'stage-rack-b' || list.kind === 'io-panel' || list.kind === 'patch-panel' || list.kind === 'switch-b' || list.kind === 'switch-c' || list.kind === 'switch-d') || stageRackNetwork;
       const showDelete = (list.kind !== 'router' && list.kind !== 'switcher' && !isStageRack && !isIoPanel && !isPatchPanel);
