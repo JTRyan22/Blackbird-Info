@@ -767,7 +767,7 @@
               await saveCurrentShow();
             });
             td.appendChild(select);
-          } else if(list.kind === 'stage-rack-a' || list.kind === 'stage-rack-b' || list.kind === 'io-panel' || list.kind === 'patch-panel' || list.kind === 'router'){
+          } else if(list.kind === 'stage-rack-a' || list.kind === 'stage-rack-b' || list.kind === 'io-panel' || list.kind === 'patch-panel' || list.kind === 'router' || list.kind === 'switcher'){
             const textInput = document.createElement('input');
             textInput.type = 'text';
             textInput.value = row.input || '';
