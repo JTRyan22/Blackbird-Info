@@ -872,7 +872,7 @@
             const input = document.createElement('input');
             input.type = 'text';
             input.value = row.label || '';
-            input.placeholder = '\u2014';
+            input.placeholder = bidiSource ? ('\u2014 unassigned on ' + listLabel(bidiSource.list.kind) + ' ' + bidiSource.row.port + ' \u2014') : '\u2014';
             input.addEventListener('change', async ()=>{
               row.label = input.value;
               await saveCurrentShow();
