@@ -526,6 +526,23 @@
     return (row && row.output) ? row.output : 'port ' + port;
   }
 
+  // Reverse lookup: is some other row's bidirectional link pointing AT this exact
+  // (kind, port, field)? Used to show the chain icon on the "target" side too,
+  // even though the target field itself is just an ordinary editable field.
+  function findBidiSourceInto(kind, port, field){
+    for(const list of state.show.lists){
+      for(const row of list.rows){
+        if(row.labelBidi && row.labelLinked &&
+           row.labelLinkKind === kind &&
+           Number(row.labelLinkPort) === Number(port) &&
+           (row.labelLinkField || 'input') === field){
+          return { list, row };
+        }
+      }
+    }
+    return null;
+  }
+
   function listLabel(kind){
     const l = listByKind(kind);
     if(!l) return kind;
@@ -851,6 +868,7 @@
             const field = row.labelLinkField || 'input';
             td.appendChild(row.labelBidi ? buildBidiLinkedCell(kind, row.labelLinkPort, field) : buildLinkedCell(kind, row.labelLinkPort, field));
           } else {
+            const bidiSource = findBidiSourceInto(list.kind, row.port, 'label');
             const input = document.createElement('input');
             input.type = 'text';
             input.value = row.label || '';
@@ -859,7 +877,20 @@
               row.label = input.value;
               await saveCurrentShow();
             });
-            td.appendChild(input);
+            if(bidiSource){
+              const wrap = document.createElement('div');
+              wrap.className = 'cell-linked';
+              const chain = document.createElement('span');
+              chain.className = 'chain';
+              chain.textContent = '\u26d3';
+              wrap.appendChild(chain);
+              input.style.background = 'transparent';
+              wrap.appendChild(input);
+              wrap.title = 'Linked both ways with ' + listLabel(bidiSource.list.kind) + ' \u2014 ' + refLabelForPort(bidiSource.list.kind, bidiSource.row.port);
+              td.appendChild(wrap);
+            } else {
+              td.appendChild(input);
+            }
           }
           tr.appendChild(td);
         }
