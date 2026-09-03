@@ -509,7 +509,22 @@
       return row.label2 || '';
     }
     if(field === 'source'){
-      return row.source || '';
+      if(row.sourceLinked){
+        const nextKind = row.sourceLinkKind || 'io-panel';
+        const nextField = row.sourceLinkField || 'input';
+        return listFieldForPort(nextKind, row.sourceLinkPort, nextField, depth + 1) || '';
+      }
+      // Source stores a REFERENCE (which router port was picked), not a text snapshot,
+      // so its display always tracks that port's current Input/Label live.
+      if(row.sourceRefPort != null && row.sourceRefPort !== ''){
+        const refInput = listFieldForPort('router', row.sourceRefPort, 'input', depth + 1);
+        const refLabel = listFieldForPort('router', row.sourceRefPort, 'label', depth + 1);
+        if(refInput && refLabel) return refInput + ': ' + refLabel;
+        if(refInput) return refInput;
+        if(refLabel) return refLabel;
+        return '';
+      }
+      return '';
     }
     if(row.linked){
       const nextKind = row.linkKind || 'router';
@@ -652,9 +667,16 @@
     return makeSelect(currentValue, SEED.netSwitchOptions);
   }
 
-  function makeRouterSourceDropdown(currentValue){
+  // Reference-based dropdown for Router's Source: each option's VALUE is a router
+  // port number (a stable identity), while its displayed TEXT is that port's current
+  // live Input/Label combo -- so the selection survives renames on the referenced row.
+  function makeRouterSourceRefDropdown(currentRefPort){
+    const select = document.createElement('select');
+    const blank = document.createElement('option');
+    blank.value = ''; blank.textContent = '\u2014 unassigned \u2014';
+    select.appendChild(blank);
     const rt = listByKind('router');
-    const values = new Set();
+    let found = false;
     if(rt){
       rt.rows.forEach(r=>{
         const input = listFieldForPort('router', r.port, 'input');
@@ -663,11 +685,25 @@
         if(input && label) combined = input + ': ' + label;
         else if(input) combined = input;
         else if(label) combined = label;
-        if(combined) values.add(combined);
+        if(!combined) return;
+        const opt = document.createElement('option');
+        opt.value = String(r.port);
+        opt.textContent = combined;
+        if(currentRefPort != null && currentRefPort !== '' && Number(r.port) === Number(currentRefPort)){
+          opt.selected = true;
+          found = true;
+        }
+        select.appendChild(opt);
       });
     }
-    const sorted = Array.from(values).sort((a,b)=> a.localeCompare(b, undefined, {numeric:true, sensitivity:'base'}));
-    return makeSelect(currentValue, sorted);
+    if(currentRefPort != null && currentRefPort !== '' && !found){
+      const opt = document.createElement('option');
+      opt.value = String(currentRefPort);
+      opt.textContent = 'Router port ' + currentRefPort + ' (no longer available)';
+      opt.selected = true;
+      select.appendChild(opt);
+    }
+    return select;
   }
 
   function makeColumnsResizable(table){
@@ -937,9 +973,9 @@
             const field = row.sourceLinkField || 'input';
             tdSrc.appendChild(row.sourceBidi ? buildBidiLinkedCell(kind, row.sourceLinkPort, field) : buildLinkedCell(kind, row.sourceLinkPort, field));
           } else {
-            const srcSelect = makeRouterSourceDropdown(row.source);
+            const srcSelect = makeRouterSourceRefDropdown(row.sourceRefPort);
             srcSelect.addEventListener('change', async ()=>{
-              row.source = srcSelect.value;
+              row.sourceRefPort = srcSelect.value ? Number(srcSelect.value) : null;
               await saveCurrentShow();
             });
             tdSrc.appendChild(srcSelect);
