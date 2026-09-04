@@ -566,7 +566,15 @@
     return null;
   }
 
+  // A field being followed can be ambiguous on its own (e.g. "Switcher 1" could mean
+  // anything on that row) -- when it's the Label2 field specifically, that always means
+  // "the output-side label" everywhere in this app, so make that explicit.
+  function fieldSideLabel(kind, port, field){
+    return listLabel(kind) + (field === 'label2' ? ' Out' : '') + ' ' + port;
+  }
+
   function listLabel(kind){
+
     const l = listByKind(kind);
     if(!l) return kind;
     return l.name.replace(/\s*\([^)]*\)\s*$/, '');
@@ -796,7 +804,7 @@
           chain.textContent = '\u26d3';
           wrap.appendChild(chain);
           const val = document.createElement('span');
-          val.textContent = (live && live.length) ? live : ('\u2014 unassigned on ' + listLabel(kind) + ' ' + port + ' \u2014');
+          val.textContent = (live && live.length) ? live : ('\u2014 unassigned on ' + fieldSideLabel(kind, port, field) + ' \u2014');
           wrap.appendChild(val);
           wrap.title = 'Following ' + listLabel(kind) + ' \u2014 ' + refLabelForPort(kind, port) + ' (' + (field === 'output' ? 'Output' : 'Input') + ')';
           return wrap;
@@ -816,7 +824,7 @@
           const input = document.createElement('input');
           input.type = 'text';
           input.value = listFieldForPort(kind, port, field) || '';
-          input.placeholder = '\u2014 unassigned on ' + listLabel(kind) + ' ' + port + ' \u2014';
+          input.placeholder = '\u2014 unassigned on ' + fieldSideLabel(kind, port, field) + ' \u2014';
           autoSizeInput(input);
           input.addEventListener('input', ()=> autoSizeInput(input));
           input.addEventListener('change', async ()=>{
