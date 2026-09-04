@@ -601,7 +601,7 @@
       if(name && name.length) return name;
     }
     let suffix = '';
-    if(field === 'label2' || field === 'source') suffix = ' Out';
+    if(field === 'label2' || field === 'source' || field === 'destination') suffix = ' Out';
     else if(field === 'label') suffix = ' In';
     return listLabel(kind) + suffix + ' ' + port;
   }
