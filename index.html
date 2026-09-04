@@ -594,9 +594,10 @@
       const muxNum = (port - 200) + (kind === 'stage-rack-b' ? 8 : 0);
       return listLabel(kind) + ' Mux In ' + muxNum;
     }
-    // The SR A/B fiber-tie rows already carry a real, meaningful name ("SR A 111")
-    // as their own Input text -- use that directly instead of a bare port number.
-    if((kind === 'stage-rack-a' || kind === 'stage-rack-b') && port >= 301 && port <= 305){
+    // The SR A/B fiber-tie rows already carry a real, meaningful name of their own
+    // ("SR A 111", "Patch 111", etc) -- use that directly instead of a bare internal
+    // port number that means nothing to anyone looking at the physical rack.
+    if((kind === 'stage-rack-a' || kind === 'stage-rack-b') && port >= 301 && port <= 312){
       const name = listFieldForPort(kind, port, 'input');
       if(name && name.length) return name;
     }
