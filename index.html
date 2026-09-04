@@ -569,7 +569,14 @@
   // A field being followed can be ambiguous on its own (e.g. "Switcher 1" could mean
   // anything on that row) -- when it's the Label2 field specifically, that always means
   // "the output-side label" everywhere in this app, so make that explicit.
+  // Lists that never show a Port # column -- referencing "port 21" there is meaningless,
+  // so placeholders for these omit the number entirely and use a shorter display name.
+  const UNNUMBERED_LIST_KINDS = { 'io-panel': 'Main I/O', 'patch-panel': 'Patch Panel' };
+
   function fieldSideLabel(kind, port, field){
+    if(UNNUMBERED_LIST_KINDS[kind]){
+      return UNNUMBERED_LIST_KINDS[kind];
+    }
     return listLabel(kind) + (field === 'label2' ? ' Out' : '') + ' ' + port;
   }
 
