@@ -577,6 +577,13 @@
     if(UNNUMBERED_LIST_KINDS[kind]){
       return UNNUMBERED_LIST_KINDS[kind];
     }
+    // Stage Rack Mux ports are stored internally as 201-208 (an arbitrary internal
+    // range, invisible in the UI) -- describe them by their real Mux position instead,
+    // continuing the count across both racks (Rack B picks up at 9, not back at 1).
+    if((kind === 'stage-rack-a' || kind === 'stage-rack-b') && port >= 201 && port <= 208){
+      const muxNum = (port - 200) + (kind === 'stage-rack-b' ? 8 : 0);
+      return listLabel(kind) + ' Mux In ' + muxNum;
+    }
     return listLabel(kind) + (field === 'label2' ? ' Out' : '') + ' ' + port;
   }
 
