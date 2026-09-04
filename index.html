@@ -560,7 +560,7 @@
              row[kindKey] === kind &&
              Number(row[portKey]) === Number(port) &&
              (row[fieldKey] || 'input') === field){
-            return { list, row };
+            return { list, row, prefix };
           }
         }
       }
@@ -592,20 +592,23 @@
       const name = listFieldForPort(kind, port, 'input');
       if(name && name.length) return name;
     }
-    return listLabel(kind) + ((field === 'label2' || field === 'source') ? ' Out' : '') + ' ' + port;
+    let suffix = '';
+    if(field === 'label2' || field === 'source') suffix = ' Out';
+    else if(field === 'label') suffix = ' In';
+    return listLabel(kind) + suffix + ' ' + port;
   }
 
   // Same idea as fieldSideLabel, but for describing the OTHER row when a bidi link
   // points INTO the cell currently rendering (the reverse-lookup case) -- for the
   // unnumbered lists, this adds the target's own real name instead of just the
   // bare list name, since a port number alone wouldn't mean anything there.
-  function reverseSideLabel(kind, port){
+  function reverseSideLabel(kind, port, field){
     if(UNNUMBERED_LIST_KINDS[kind]){
       const ref = refLabelForPort(kind, port);
       if(ref && !ref.startsWith('port ')) return UNNUMBERED_LIST_KINDS[kind] + ' ' + ref;
       return UNNUMBERED_LIST_KINDS[kind];
     }
-    return fieldSideLabel(kind, port, null);
+    return fieldSideLabel(kind, port, field);
   }
 
   function listLabel(kind){
@@ -948,7 +951,7 @@
             const input = document.createElement('input');
             input.type = 'text';
             input.value = row.label || '';
-            input.placeholder = bidiSource ? ('\u2014 unassigned on ' + reverseSideLabel(bidiSource.list.kind, bidiSource.row.port) + ' \u2014') : '\u2014';
+            input.placeholder = bidiSource ? ('\u2014 unassigned on ' + reverseSideLabel(bidiSource.list.kind, bidiSource.row.port, bidiSource.prefix) + ' \u2014') : '\u2014';
             autoSizeInput(input);
             input.addEventListener('input', ()=> autoSizeInput(input));
             input.addEventListener('change', async ()=>{
@@ -1046,7 +1049,7 @@
             const input = document.createElement('input');
             input.type = 'text';
             input.value = row.label2 || '';
-            input.placeholder = bidiSource ? ('\u2014 unassigned on ' + reverseSideLabel(bidiSource.list.kind, bidiSource.row.port) + ' \u2014') : '\u2014';
+            input.placeholder = bidiSource ? ('\u2014 unassigned on ' + reverseSideLabel(bidiSource.list.kind, bidiSource.row.port, bidiSource.prefix) + ' \u2014') : '\u2014';
             autoSizeInput(input);
             input.addEventListener('input', ()=> autoSizeInput(input));
             input.addEventListener('change', async ()=>{
