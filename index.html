@@ -584,7 +584,7 @@
       const muxNum = (port - 200) + (kind === 'stage-rack-b' ? 8 : 0);
       return listLabel(kind) + ' Mux In ' + muxNum;
     }
-    return listLabel(kind) + (field === 'label2' ? ' Out' : '') + ' ' + port;
+    return listLabel(kind) + ((field === 'label2' || field === 'source') ? ' Out' : '') + ' ' + port;
   }
 
   function listLabel(kind){
