@@ -153,7 +153,7 @@
     width:100%;
     border-collapse:collapse;
     margin-top:0;
-    table-layout:fixed;
+    table-layout:auto;
   }
   table.io-table thead th{
     position:sticky; top:0;
@@ -165,16 +165,11 @@
     color:var(--dim);
     padding:8px 10px;
     border-bottom:1px solid var(--line);
+    white-space:nowrap;
   }
   table.io-table th.group-end, table.io-table td.group-end{ border-right:4px solid #20232c; }
   table.io-table th.port-col{width:70px;}
   table.io-table th.del-col{width:36px;}
-  table.io-table th{ overflow:hidden; }
-  .col-resizer{
-    position:absolute; right:0; top:0; bottom:0; width:6px;
-    cursor:col-resize; user-select:none; touch-action:none;
-  }
-  .col-resizer:hover, .col-resizer.active{ background:var(--amber-dim); }
   table.io-table td{
     padding:0;
     border-bottom:1px solid #20232c;
@@ -192,8 +187,7 @@
   }
   .cell-edit{ padding:0; }
   .cell-edit input, .cell-edit select{
-    width:100%;
-    min-width:0;
+    min-width:60px;
     background:transparent;
     border:1px solid transparent;
     color:var(--text);
@@ -202,6 +196,7 @@
     font-family:var(--sans);
     outline:none;
     border-radius:4px;
+    white-space:nowrap;
   }
   .cell-edit select{ appearance:auto; cursor:pointer; }
   .cell-edit input:hover, .cell-edit select:hover{border-color:var(--line);}
@@ -706,32 +701,13 @@
     return select;
   }
 
-  function makeColumnsResizable(table){
-    const ths = table.querySelectorAll('thead th');
-    ths.forEach(th=>{
-      if(th.classList.contains('del-col')) return;  // no point resizing the tiny delete column
-      const resizer = document.createElement('div');
-      resizer.className = 'col-resizer';
-      th.appendChild(resizer);
-      resizer.addEventListener('mousedown', (e)=>{
-        e.preventDefault();
-        e.stopPropagation();
-        const startX = e.pageX;
-        const startWidth = th.getBoundingClientRect().width;
-        resizer.classList.add('active');
-        function onMove(ev){
-          const newWidth = Math.max(50, startWidth + (ev.pageX - startX));
-          th.style.width = newWidth + 'px';
-        }
-        function onUp(){
-          resizer.classList.remove('active');
-          document.removeEventListener('mousemove', onMove);
-          document.removeEventListener('mouseup', onUp);
-        }
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onUp);
-      });
-    });
+  // Sizes a text input to fit its current value (character-count based, using the
+  // browser's native `size` attribute) so columns naturally widen/narrow with content
+  // instead of needing manual dragging. Re-run on every keystroke.
+  function autoSizeInput(input, minChars){
+    minChars = minChars || 3;
+    const len = (input.value || input.placeholder || '').length;
+    input.size = Math.max(minChars, Math.min(len + 1, 60));
   }
 
   function renderTable(){
@@ -839,6 +815,8 @@
           input.type = 'text';
           input.value = listFieldForPort(kind, port, field) || '';
           input.placeholder = '\u2014 unassigned on ' + listLabel(kind) + ' ' + port + ' \u2014';
+          autoSizeInput(input);
+          input.addEventListener('input', ()=> autoSizeInput(input));
           input.addEventListener('change', async ()=>{
             const targetList = listByKind(kind);
             if(!targetList){ return; }
@@ -883,6 +861,8 @@
             textInput.type = 'text';
             textInput.value = row.input || '';
             textInput.placeholder = '\u2014';
+            autoSizeInput(textInput);
+            textInput.addEventListener('input', ()=> autoSizeInput(textInput));
             textInput.addEventListener('change', async ()=>{
               row.input = textInput.value;
               await saveCurrentShow();
@@ -920,6 +900,8 @@
             input.type = 'text';
             input.value = row.label || '';
             input.placeholder = bidiSource ? ('\u2014 unassigned on ' + listLabel(bidiSource.list.kind) + ' ' + bidiSource.row.port + ' \u2014') : '\u2014';
+            autoSizeInput(input);
+            input.addEventListener('input', ()=> autoSizeInput(input));
             input.addEventListener('change', async ()=>{
               row.label = input.value;
               await saveCurrentShow();
@@ -955,6 +937,8 @@
             input.type = 'text';
             input.value = row.output || '';
             input.placeholder = '\u2014';
+            autoSizeInput(input);
+            input.addEventListener('input', ()=> autoSizeInput(input));
             input.addEventListener('change', async ()=>{
               row.output = input.value;
               await saveCurrentShow();
@@ -988,6 +972,8 @@
           destInput.type = 'text';
           destInput.value = row.destination || '';
           destInput.placeholder = '\u2014';
+          autoSizeInput(destInput);
+          destInput.addEventListener('input', ()=> autoSizeInput(destInput));
           destInput.addEventListener('change', async ()=>{
             row.destination = destInput.value;
             await saveCurrentShow();
@@ -1009,6 +995,8 @@
             input.type = 'text';
             input.value = row.label2 || '';
             input.placeholder = bidiSource ? ('\u2014 unassigned on ' + listLabel(bidiSource.list.kind) + ' ' + bidiSource.row.port + ' \u2014') : '\u2014';
+            autoSizeInput(input);
+            input.addEventListener('input', ()=> autoSizeInput(input));
             input.addEventListener('change', async ()=>{
               row.label2 = input.value;
               await saveCurrentShow();
@@ -1051,7 +1039,6 @@
 
       table.appendChild(tbody);
       els.ioTableWrap.appendChild(table);
-      makeColumnsResizable(table);
     }
 
     if(list.kind !== 'router' && list.kind !== 'switcher' && list.kind !== 'stage-rack-a' && list.kind !== 'stage-rack-b' && list.kind !== 'io-panel' && list.kind !== 'patch-panel'){
