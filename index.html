@@ -849,6 +849,7 @@
             select.addEventListener('change', async ()=>{
               row.input = select.value;
               await saveCurrentShow();
+              if(list.kind === 'router'){ renderTable(); }
             });
             td.appendChild(select);
           } else if(row.netSwitchPort){
@@ -856,6 +857,7 @@
             select.addEventListener('change', async ()=>{
               row.input = select.value;
               await saveCurrentShow();
+              if(list.kind === 'router'){ renderTable(); }
             });
             td.appendChild(select);
           } else if(list.kind === 'stage-rack-a' || list.kind === 'stage-rack-b' || list.kind === 'io-panel' || list.kind === 'patch-panel' || list.kind === 'router' || list.kind === 'switcher'){
@@ -868,6 +870,7 @@
             textInput.addEventListener('change', async ()=>{
               row.input = textInput.value;
               await saveCurrentShow();
+              if(list.kind === 'router'){ renderTable(); }
             });
             td.appendChild(textInput);
           } else {
@@ -875,6 +878,7 @@
             select.addEventListener('change', async ()=>{
               row.input = select.value;
               await saveCurrentShow();
+              if(list.kind === 'router'){ renderTable(); }
             });
             td.appendChild(select);
           }
@@ -907,6 +911,7 @@
             input.addEventListener('change', async ()=>{
               row.label = input.value;
               await saveCurrentShow();
+              if(list.kind === 'router'){ renderTable(); }
             });
             if(bidiSource){
               const wrap = document.createElement('div');
@@ -944,6 +949,7 @@
             input.addEventListener('change', async ()=>{
               row.output = input.value;
               await saveCurrentShow();
+              if(list.kind === 'router'){ renderTable(); }
             });
             td.appendChild(input);
           }
@@ -963,6 +969,7 @@
             srcSelect.addEventListener('change', async ()=>{
               row.sourceRefPort = srcSelect.value ? Number(srcSelect.value) : null;
               await saveCurrentShow();
+              if(list.kind === 'router'){ renderTable(); }
             });
             tdSrc.appendChild(srcSelect);
           }
@@ -1002,6 +1009,7 @@
             input.addEventListener('change', async ()=>{
               row.label2 = input.value;
               await saveCurrentShow();
+              if(list.kind === 'router'){ renderTable(); }
             });
             if(bidiSource){
               const wrap = document.createElement('div');
