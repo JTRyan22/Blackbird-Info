@@ -1753,7 +1753,7 @@
     state.savesList.forEach(s=>{
       const opt = document.createElement('option');
       opt.value = s.id;
-      opt.textContent = s.name + (s.is_default ? ' (default)' : '');
+      opt.textContent = s.name;
       if(s.id === state.show.id) opt.selected = true;
       els.ioSaveSelect.appendChild(opt);
     });
