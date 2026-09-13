@@ -549,6 +549,21 @@
   // is_default = true at a time -- that's what loads automatically on open.
   // See schema.sql.
 
+  // Retries once after a short pause if a call fails with a network-level
+  // error (e.g. "Failed to fetch" from a dropped connection), rather than
+  // failing a whole multi-step flow on one transient blip.
+  async function withRetry(fn){
+    try{
+      return await fn();
+    } catch(err){
+      if(err instanceof TypeError){
+        await new Promise(r => setTimeout(r, 600));
+        return await fn();
+      }
+      throw err;
+    }
+  }
+
   async function dbListSaves(){
     const { data, error } = await sb.from('shows').select('id,name,is_default').order('name');
     if(error){ console.error(error); showDbError(error); return []; }
@@ -915,18 +930,24 @@
   async function switchToSave(id){
     if(!id || (state.show && state.show.id === id)) return;
     await flushPendingSave();
-    const show = await dbGetShowById(id);
-    if(!show) return;
-    if(!show.sourceNames) show.sourceNames = [];
-    if(!show.name) show.name = 'Untitled';
-    const changed = migrateShow(show);
-    if(changed){ await dbUpsertShow(show); }
-    state.show = show;
-    state.activeListId = show.lists[0] ? show.lists[0].id : null;
-    state.activeGroup = show.lists[0] ? firstGroup(show.lists[0]) : null;
-    subscribeToShow(show.id);
-    renderAll();
-    renderSaveBar();
+    try{
+      const show = await withRetry(()=> dbGetShowById(id));
+      if(!show) return;
+      if(!show.sourceNames) show.sourceNames = [];
+      if(!show.name) show.name = 'Untitled';
+      const changed = migrateShow(show);
+      if(changed){ await withRetry(()=> dbUpsertShow(show)); }
+      state.show = show;
+      state.activeListId = show.lists[0] ? show.lists[0].id : null;
+      state.activeGroup = show.lists[0] ? firstGroup(show.lists[0]) : null;
+      subscribeToShow(show.id);
+      renderAll();
+      renderSaveBar();
+    } catch(err){
+      console.error(err);
+      showDbError({ message: 'Could not switch shows due to a connection issue. Try again.' });
+      renderSaveBar();
+    }
   }
 
   async function createNewSave(name){
@@ -962,30 +983,40 @@
     await flushPendingSave();
     const wasDefault = state.savesList.some(s => s.id === state.show.id && s.is_default);
     const deletedName = state.show.name;
-    const ok = await dbDeleteShow(state.show.id);
-    if(!ok) return;
+    const deletedId = state.show.id;
 
-    let remaining = await dbListSaves();
-    if(wasDefault && remaining.length){
-      // Whatever's left needs a default -- pick the first one.
-      await dbSetDefault(remaining[0].id);
-      remaining = await dbListSaves();
+    try{
+      const ok = await withRetry(()=> dbDeleteShow(deletedId));
+      if(!ok) return;
+
+      // Update locally instead of re-querying every step -- fewer round
+      // trips, less exposure to a mid-sequence network drop.
+      let remaining = state.savesList.filter(s => s.id !== deletedId);
+
+      if(wasDefault && remaining.length){
+        await withRetry(()=> dbSetDefault(remaining[0].id));
+        remaining = remaining.map((s,i)=> ({ ...s, is_default: i === 0 }));
+      }
+
+      const nextMeta = remaining.find(s => s.is_default) || remaining[0];
+      const nextShow = await withRetry(()=> dbGetShowById(nextMeta.id));
+      if(!nextShow) throw new Error('Could not load the next show.');
+      if(!nextShow.sourceNames) nextShow.sourceNames = [];
+      if(!nextShow.name) nextShow.name = 'Untitled';
+      migrateShow(nextShow);
+
+      state.show = nextShow;
+      state.savesList = remaining;
+      state.activeListId = nextShow.lists[0] ? nextShow.lists[0].id : null;
+      state.activeGroup = nextShow.lists[0] ? firstGroup(nextShow.lists[0]) : null;
+      subscribeToShow(nextShow.id);
+      renderAll();
+      renderSaveBar();
+      flashStatus('Deleted "' + deletedName + '"');
+    } catch(err){
+      console.error(err);
+      showDbError({ message: 'The delete may be incomplete due to a connection issue. Refresh the page to check the current state before trying again.' });
     }
-
-    const nextMeta = remaining.find(s => s.is_default) || remaining[0];
-    const nextShow = await dbGetShowById(nextMeta.id);
-    if(!nextShow.sourceNames) nextShow.sourceNames = [];
-    if(!nextShow.name) nextShow.name = 'Untitled';
-    migrateShow(nextShow);
-
-    state.show = nextShow;
-    state.savesList = remaining;
-    state.activeListId = nextShow.lists[0] ? nextShow.lists[0].id : null;
-    state.activeGroup = nextShow.lists[0] ? firstGroup(nextShow.lists[0]) : null;
-    subscribeToShow(nextShow.id);
-    renderAll();
-    renderSaveBar();
-    flashStatus('Deleted "' + deletedName + '"');
   }
 
 
