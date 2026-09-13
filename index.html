@@ -772,10 +772,39 @@
     flashStatus('Updated');
   }
 
+  // Debounced so a burst of edits (e.g. tabbing through several fields
+  // quickly) coalesces into one network request shortly after the last
+  // change, instead of firing one full upload per field.
+  let _saveDebounceTimer = null;
+  let _saveDebouncePending = [];
+
   async function saveCurrentShow(){
     if(!state.show) return;
+    return new Promise((resolve)=>{
+      _saveDebouncePending.push(resolve);
+      clearTimeout(_saveDebounceTimer);
+      _saveDebounceTimer = setTimeout(async ()=>{
+        const resolvers = _saveDebouncePending;
+        _saveDebouncePending = [];
+        const ok = await dbUpsertShow(state.show);
+        if(ok) flashStatus('Saved');
+        resolvers.forEach(r => r(ok));
+      }, 400);
+    });
+  }
+
+  // Flush any pending debounced save immediately -- used right before the
+  // page unloads or the person switches/deletes a show, so a save
+  // mid-debounce doesn't get silently dropped.
+  async function flushPendingSave(){
+    if(!_saveDebounceTimer) return;
+    clearTimeout(_saveDebounceTimer);
+    _saveDebounceTimer = null;
+    const resolvers = _saveDebouncePending;
+    _saveDebouncePending = [];
+    if(!state.show) return;
     const ok = await dbUpsertShow(state.show);
-    if(ok) flashStatus('Saved');
+    resolvers.forEach(r => r(ok));
   }
 
   // Merges a saved show against the current defaultShow() template: adds any new
@@ -885,6 +914,7 @@
 
   async function switchToSave(id){
     if(!id || (state.show && state.show.id === id)) return;
+    await flushPendingSave();
     const show = await dbGetShowById(id);
     if(!show) return;
     if(!show.sourceNames) show.sourceNames = [];
@@ -929,6 +959,7 @@
       alert('This is the only save left \u2014 it can\u2019t be deleted.');
       return;
     }
+    await flushPendingSave();
     const wasDefault = state.savesList.some(s => s.id === state.show.id && s.is_default);
     const deletedName = state.show.name;
     const ok = await dbDeleteShow(state.show.id);
@@ -1864,6 +1895,11 @@
       await renderAccessList();
     }
   });
+
+  // Best-effort: try to flush a pending debounced save if the tab is
+  // closing mid-debounce. Browsers don't guarantee async work completes
+  // here, but the debounce window is short (400ms) so the risk is small.
+  window.addEventListener('beforeunload', ()=>{ flushPendingSave(); });
 
   // --- Init ---
   (async function init(){
