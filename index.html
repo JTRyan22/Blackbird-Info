@@ -436,6 +436,7 @@
         <option value="editor">Editor</option>
         <option value="admin">Admin</option>
       </select>
+      <select id="ioAccessNewShow"></select>
       <button id="ioAccessAddBtn">Add</button>
     </div>
     <div class="io-modal-list" id="ioAccessList"></div>
@@ -465,6 +466,7 @@
     ioAccessModalClose: document.getElementById('ioAccessModalClose'),
     ioAccessNewEmail: document.getElementById('ioAccessNewEmail'),
     ioAccessNewRole: document.getElementById('ioAccessNewRole'),
+    ioAccessNewShow: document.getElementById('ioAccessNewShow'),
     ioAccessAddBtn: document.getElementById('ioAccessAddBtn'),
     ioAccessList: document.getElementById('ioAccessList'),
     ioDefaultTag: document.getElementById('ioDefaultTag'),
@@ -479,6 +481,7 @@
     userEmail: null,
     userRole: null,   // 'admin' | 'editor' | 'viewer' | null (no access)
     readOnly: false,
+    assignedShowId: null,
   };
 
   function uid(prefix){ return prefix + '_' + Math.random().toString(36).slice(2,9); }
@@ -561,20 +564,27 @@
 
   // --- Auth & access control ---
 
-  async function dbGetMyRole(email){
-    const { data, error } = await sb.from('user_access').select('email,role').eq('email', email).maybeSingle();
+  async function dbGetMyAccess(email){
+    const { data, error } = await sb.from('user_access').select('email,role,assigned_show_id').eq('email', email).maybeSingle();
     if(error){ console.error(error); return null; }
-    return data ? data.role : null;
+    return data || null;
   }
 
   async function dbListAccess(){
-    const { data, error } = await sb.from('user_access').select('email,role,added_at').order('email');
+    const { data, error } = await sb.from('user_access').select('email,role,added_at,assigned_show_id').order('email');
     if(error){ console.error(error); return []; }
     return data || [];
   }
 
-  async function dbAddAccess(email, role){
-    const { error } = await sb.from('user_access').upsert({ email: email.trim().toLowerCase(), role });
+  async function dbListAllShows(){
+    const { data, error } = await sb.from('shows').select('id,name').order('name');
+    if(error){ console.error(error); return []; }
+    return data || [];
+  }
+
+  async function dbAddAccess(email, role, assignedShowId){
+    const row = { email: email.trim().toLowerCase(), role, assigned_show_id: assignedShowId || null };
+    const { error } = await sb.from('user_access').upsert(row);
     if(error){ console.error(error); alert('Could not add: ' + error.message); return false; }
     return true;
   }
@@ -621,6 +631,29 @@
     const sub = document.createElement('div');
     sub.className = 'io-auth-sub';
     sub.textContent = 'Your account isn\u2019t on the access list for this tool. Ask an admin to add you.';
+    const emailTag = document.createElement('div');
+    emailTag.className = 'io-auth-email';
+    emailTag.textContent = email;
+    const signoutBtn = document.createElement('button');
+    signoutBtn.className = 'io-auth-signout';
+    signoutBtn.textContent = 'Sign out';
+    signoutBtn.addEventListener('click', signOut);
+    els.ioAuthContent.appendChild(title);
+    els.ioAuthContent.appendChild(sub);
+    els.ioAuthContent.appendChild(emailTag);
+    els.ioAuthContent.appendChild(signoutBtn);
+    els.ioAuthScreen.style.display = 'flex';
+    els.ioApp.style.display = 'none';
+  }
+
+  function renderNoShowAssignedScreen(email){
+    els.ioAuthContent.innerHTML = '';
+    const title = document.createElement('div');
+    title.className = 'io-auth-title';
+    title.textContent = 'No show assigned yet';
+    const sub = document.createElement('div');
+    sub.className = 'io-auth-sub';
+    sub.textContent = 'You have access, but an admin hasn\u2019t assigned you a show to ' + (state.readOnly ? 'view' : 'edit') + ' yet.';
     const emailTag = document.createElement('div');
     emailTag.className = 'io-auth-email';
     emailTag.textContent = email;
@@ -716,12 +749,31 @@
   }
 
   async function loadShow(){
+    if(state.userRole !== 'admin'){
+      // Editors and viewers only ever load the one show an admin assigned them.
+      let show = await dbGetShowById(state.assignedShowId);
+      if(!show){
+        show = defaultShow();
+      } else {
+        if(!show.sourceNames) show.sourceNames = [];
+        if(!show.name) show.name = 'Default';
+        const changed = migrateShow(show);
+        // Viewers can't write; editors CAN write to their own assigned show,
+        // so let editors persist the patch, but never viewers.
+        if(changed && state.userRole === 'editor'){ await dbUpsertShow(show); }
+      }
+      state.show = show;
+      state.savesList = [];
+      state.activeListId = show.lists[0] ? show.lists[0].id : null;
+      state.activeGroup = show.lists[0] ? firstGroup(show.lists[0]) : null;
+      return;
+    }
+
+    // Admins: full multi-save access, same as before.
     let savesList = await dbListSaves();
     let defaultMeta = savesList.find(s => s.is_default);
 
     if(!defaultMeta && savesList.length){
-      // No default marked yet (e.g. upgrading from the old single-save setup) --
-      // promote the existing 'main' row if there is one, else just the first save.
       defaultMeta = savesList.find(s => s.id === 'main') || savesList[0];
       await dbSetDefault(defaultMeta.id);
       savesList = await dbListSaves();
@@ -731,7 +783,6 @@
     let show = defaultMeta ? await dbGetShowById(defaultMeta.id) : null;
 
     if(!show){
-      // Nothing exists at all yet -- create a fresh default save.
       show = defaultShow();
       show.id = uid('show');
       await dbUpsertShow(show);
@@ -1543,7 +1594,7 @@
 
   function renderSaveBar(){
     if(!state.show) return;
-    if(state.readOnly){
+    if(state.userRole !== 'admin'){
       document.querySelector('.io-savebar').style.display = 'none';
       return;
     }
@@ -1598,6 +1649,14 @@
 
   async function openAccessModal(){
     els.ioAccessModal.style.display = 'flex';
+    const allShows = await dbListAllShows();
+    els.ioAccessNewShow.innerHTML = '';
+    allShows.forEach(s=>{
+      const opt = document.createElement('option');
+      opt.value = s.id; opt.textContent = s.name;
+      els.ioAccessNewShow.appendChild(opt);
+    });
+    els.ioAccessNewShow.style.display = (els.ioAccessNewRole.value === 'admin') ? 'none' : '';
     await renderAccessList();
   }
 
@@ -1606,7 +1665,7 @@
   }
 
   async function renderAccessList(){
-    const list = await dbListAccess();
+    const [list, allShows] = await Promise.all([dbListAccess(), dbListAllShows()]);
     els.ioAccessList.innerHTML = '';
     list.forEach(entry=>{
       const row = document.createElement('div');
@@ -1614,6 +1673,7 @@
       const emailEl = document.createElement('div');
       emailEl.className = 'io-modal-row-email';
       emailEl.textContent = entry.email;
+
       const roleSelect = document.createElement('select');
       ['viewer','editor','admin'].forEach(r=>{
         const opt = document.createElement('option');
@@ -1621,10 +1681,30 @@
         if(r === entry.role) opt.selected = true;
         roleSelect.appendChild(opt);
       });
+
+      const showSelect = document.createElement('select');
+      const blankOpt = document.createElement('option');
+      blankOpt.value = ''; blankOpt.textContent = '\u2014 no show assigned \u2014';
+      showSelect.appendChild(blankOpt);
+      allShows.forEach(s=>{
+        const opt = document.createElement('option');
+        opt.value = s.id; opt.textContent = s.name;
+        if(s.id === entry.assigned_show_id) opt.selected = true;
+        showSelect.appendChild(opt);
+      });
+      showSelect.style.display = (entry.role === 'admin') ? 'none' : '';
+
       roleSelect.addEventListener('change', async ()=>{
-        await dbAddAccess(entry.email, roleSelect.value);
+        showSelect.style.display = (roleSelect.value === 'admin') ? 'none' : '';
+        const keepShowId = roleSelect.value === 'admin' ? null : (showSelect.value || null);
+        await dbAddAccess(entry.email, roleSelect.value, keepShowId);
         flashStatus('Updated');
       });
+      showSelect.addEventListener('change', async ()=>{
+        await dbAddAccess(entry.email, roleSelect.value, showSelect.value || null);
+        flashStatus('Updated');
+      });
+
       const removeBtn = document.createElement('button');
       removeBtn.className = 'io-modal-row-remove';
       removeBtn.textContent = 'Remove';
@@ -1640,6 +1720,7 @@
       });
       row.appendChild(emailEl);
       row.appendChild(roleSelect);
+      row.appendChild(showSelect);
       row.appendChild(removeBtn);
       els.ioAccessList.appendChild(row);
     });
@@ -1678,10 +1759,16 @@
   els.ioAccessModal.addEventListener('click', (e)=>{
     if(e.target === els.ioAccessModal) closeAccessModal();
   });
+  els.ioAccessNewRole.addEventListener('change', ()=>{
+    els.ioAccessNewShow.style.display = (els.ioAccessNewRole.value === 'admin') ? 'none' : '';
+  });
+
   els.ioAccessAddBtn.addEventListener('click', async ()=>{
     const email = els.ioAccessNewEmail.value.trim();
     if(!email){ return; }
-    const ok = await dbAddAccess(email, els.ioAccessNewRole.value);
+    const role = els.ioAccessNewRole.value;
+    const showId = role === 'admin' ? null : els.ioAccessNewShow.value;
+    const ok = await dbAddAccess(email, role, showId);
     if(ok){
       els.ioAccessNewEmail.value = '';
       await renderAccessList();
@@ -1707,14 +1794,21 @@
 
     const email = session.user.email;
     state.userEmail = email;
-    const role = await dbGetMyRole(email);
-    if(!role){
+    const access = await dbGetMyAccess(email);
+    if(!access){
       renderNoAccessScreen(email);
       return;
     }
 
-    state.userRole = role;
-    state.readOnly = (role === 'viewer');
+    state.userRole = access.role;
+    state.assignedShowId = access.assigned_show_id || null;
+    state.readOnly = (access.role === 'viewer');
+
+    if(access.role !== 'admin' && !state.assignedShowId){
+      renderNoShowAssignedScreen(email);
+      return;
+    }
+
     showApp();
     renderUserBar();
     await loadShow();
