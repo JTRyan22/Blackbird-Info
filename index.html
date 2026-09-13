@@ -148,6 +148,10 @@
   }
   .io-save-btn:hover{ border-color:var(--amber-dim); color:var(--amber); }
   .io-save-btn-ghost{ background:transparent; color:var(--dim); }
+  .io-save-btn-danger{ color:var(--danger); }
+  .io-save-btn-danger:hover{ border-color:var(--danger); color:var(--danger); }
+  .io-save-btn:disabled{ opacity:.35; cursor:not-allowed; }
+  .io-save-btn:disabled:hover{ border-color:var(--line); color:var(--dim); }
   .io-save-default-tag{
     font-size:11px; color:var(--signal);
     text-transform:uppercase; letter-spacing:.05em;
@@ -302,6 +306,7 @@
     <select class="io-save-select" id="ioSaveSelect"></select>
     <button class="io-save-btn" id="ioSaveBtn">Save Show</button>
     <button class="io-save-btn io-save-btn-ghost" id="ioSetDefaultBtn">Set as Default</button>
+    <button class="io-save-btn io-save-btn-danger" id="ioDeleteBtn">Delete Save</button>
     <span class="io-save-default-tag" id="ioDefaultTag"></span>
   </div>
 
@@ -329,6 +334,7 @@
     ioSaveSelect: document.getElementById('ioSaveSelect'),
     ioSaveBtn: document.getElementById('ioSaveBtn'),
     ioSetDefaultBtn: document.getElementById('ioSetDefaultBtn'),
+    ioDeleteBtn: document.getElementById('ioDeleteBtn'),
     ioDefaultTag: document.getElementById('ioDefaultTag'),
   };
 
@@ -410,6 +416,11 @@
     if(err1){ console.error(err1); showDbError(err1); return false; }
     const { error: err2 } = await sb.from('shows').update({ is_default: true }).eq('id', id);
     if(err2){ console.error(err2); showDbError(err2); return false; }
+    return true;
+  }
+  async function dbDeleteShow(id){
+    const { error } = await sb.from('shows').delete().eq('id', id);
+    if(error){ console.error(error); showDbError(error); return false; }
     return true;
   }
 
@@ -558,6 +569,39 @@
     state.savesList = await dbListSaves();
     renderSaveBar();
     flashStatus('Default set');
+  }
+
+  async function deleteCurrentSave(){
+    if(!state.show) return;
+    if(state.savesList.length <= 1){
+      alert('This is the only save left \u2014 it can\u2019t be deleted.');
+      return;
+    }
+    const wasDefault = state.savesList.some(s => s.id === state.show.id && s.is_default);
+    const deletedName = state.show.name;
+    const ok = await dbDeleteShow(state.show.id);
+    if(!ok) return;
+
+    let remaining = await dbListSaves();
+    if(wasDefault && remaining.length){
+      // Whatever's left needs a default -- pick the first one.
+      await dbSetDefault(remaining[0].id);
+      remaining = await dbListSaves();
+    }
+
+    const nextMeta = remaining.find(s => s.is_default) || remaining[0];
+    const nextShow = await dbGetShowById(nextMeta.id);
+    if(!nextShow.sourceNames) nextShow.sourceNames = [];
+    if(!nextShow.name) nextShow.name = 'Untitled';
+    migrateShow(nextShow);
+
+    state.show = nextShow;
+    state.savesList = remaining;
+    state.activeListId = nextShow.lists[0] ? nextShow.lists[0].id : null;
+    state.activeGroup = nextShow.lists[0] ? firstGroup(nextShow.lists[0]) : null;
+    renderAll();
+    renderSaveBar();
+    flashStatus('Deleted "' + deletedName + '"');
   }
 
 
@@ -1289,14 +1333,11 @@
       if(s.id === state.show.id) opt.selected = true;
       els.ioSaveSelect.appendChild(opt);
     });
-    const newOpt = document.createElement('option');
-    newOpt.value = '__new__';
-    newOpt.textContent = '+ New Save...';
-    els.ioSaveSelect.appendChild(newOpt);
 
     const current = state.savesList.find(s => s.id === state.show.id);
     els.ioDefaultTag.textContent = (current && current.is_default) ? '\u2605 Default' : '';
     els.ioSetDefaultBtn.style.display = (current && current.is_default) ? 'none' : '';
+    els.ioDeleteBtn.disabled = state.savesList.length <= 1;
   }
 
   // --- Events ---
@@ -1307,24 +1348,25 @@
   });
 
   els.ioSaveSelect.addEventListener('change', async ()=>{
-    const val = els.ioSaveSelect.value;
-    if(val === '__new__'){
-      const name = prompt('Name this new save:');
-      renderSaveBar();  // reset the dropdown back to the current save if cancelled
-      if(name && name.trim()){
-        await createNewSave(name.trim());
-      }
-      return;
-    }
-    await switchToSave(val);
+    await switchToSave(els.ioSaveSelect.value);
   });
 
   els.ioSaveBtn.addEventListener('click', async ()=>{
-    await saveCurrentShow();
+    const name = prompt('Name this save:');
+    if(name && name.trim()){
+      await createNewSave(name.trim());
+    }
   });
 
   els.ioSetDefaultBtn.addEventListener('click', async ()=>{
     await setCurrentAsDefault();
+  });
+
+  els.ioDeleteBtn.addEventListener('click', async ()=>{
+    if(!state.show) return;
+    if(confirm('Delete "' + state.show.name + '"? This can\u2019t be undone.')){
+      await deleteCurrentSave();
+    }
   });
 
   // --- Init ---
