@@ -270,11 +270,7 @@
   .io-save-btn-danger:hover{ border-color:var(--danger); color:var(--danger); }
   .io-save-btn:disabled{ opacity:.35; cursor:not-allowed; }
   .io-save-btn:disabled:hover{ border-color:var(--line); color:var(--dim); }
-  .io-save-default-tag{
-    font-size:11px; color:var(--signal);
-    text-transform:uppercase; letter-spacing:.05em;
-    font-family:var(--mono);
-  }
+
 
   .io-toolbar{
     display:flex;align-items:center;gap:10px;
@@ -430,7 +426,6 @@
     <button class="io-save-btn" id="ioSaveBtn">Add Show</button>
     <button class="io-save-btn io-save-btn-ghost" id="ioSetDefaultBtn">Set as Default</button>
     <button class="io-save-btn io-save-btn-danger" id="ioDeleteBtn">Delete Save</button>
-    <span class="io-save-default-tag" id="ioDefaultTag"></span>
   </div>
 
   <div class="io-subtabs" id="ioSubTabs"></div>
@@ -490,7 +485,7 @@
     ioAccessNewShow: document.getElementById('ioAccessNewShow'),
     ioAccessAddBtn: document.getElementById('ioAccessAddBtn'),
     ioAccessList: document.getElementById('ioAccessList'),
-    ioDefaultTag: document.getElementById('ioDefaultTag'),
+
   };
 
   let state = {
@@ -1759,7 +1754,6 @@
     });
 
     const current = state.savesList.find(s => s.id === state.show.id);
-    els.ioDefaultTag.textContent = (current && current.is_default) ? '\u2605 Default' : '';
     els.ioSetDefaultBtn.style.display = (current && current.is_default) ? 'none' : '';
     els.ioDeleteBtn.disabled = state.savesList.length <= 1;
   }
