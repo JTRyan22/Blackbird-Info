@@ -119,6 +119,41 @@
     font-weight:600;
   }
 
+  .io-savebar{
+    display:flex; align-items:center; gap:10px;
+    padding:10px 18px;
+    border-bottom:1px solid var(--line);
+    background:#15171d;
+    flex-wrap:wrap;
+  }
+  .io-save-select{
+    background:var(--panel-2);
+    color:var(--text);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:7px 10px;
+    font-size:13px;
+    font-family:var(--sans);
+    min-width:160px;
+  }
+  .io-save-btn{
+    background:var(--panel-2);
+    color:var(--text);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:7px 12px;
+    font-size:13px;
+    font-family:var(--sans);
+    cursor:pointer;
+  }
+  .io-save-btn:hover{ border-color:var(--amber-dim); color:var(--amber); }
+  .io-save-btn-ghost{ background:transparent; color:var(--dim); }
+  .io-save-default-tag{
+    font-size:11px; color:var(--signal);
+    text-transform:uppercase; letter-spacing:.05em;
+    font-family:var(--mono);
+  }
+
   .io-toolbar{
     display:flex;align-items:center;gap:10px;
     padding:12px 18px;
@@ -263,6 +298,13 @@
     <div class="io-tabs" id="ioTabs"></div>
   </div>
 
+  <div class="io-savebar">
+    <select class="io-save-select" id="ioSaveSelect"></select>
+    <button class="io-save-btn" id="ioSaveBtn">Save Show</button>
+    <button class="io-save-btn io-save-btn-ghost" id="ioSetDefaultBtn">Set as Default</button>
+    <span class="io-save-default-tag" id="ioDefaultTag"></span>
+  </div>
+
   <div class="io-subtabs" id="ioSubTabs"></div>
 
   <div class="io-toolbar">
@@ -284,6 +326,10 @@
     ioSearch: document.getElementById('ioSearch'),
     ioCount: document.getElementById('ioCount'),
     ioTableWrap: document.getElementById('ioTableWrap'),
+    ioSaveSelect: document.getElementById('ioSaveSelect'),
+    ioSaveBtn: document.getElementById('ioSaveBtn'),
+    ioSetDefaultBtn: document.getElementById('ioSetDefaultBtn'),
+    ioDefaultTag: document.getElementById('ioDefaultTag'),
   };
 
   let state = {
@@ -291,6 +337,7 @@
     activeListId: null,
     activeGroup: null,
     search: '',
+    savesList: [],
   };
 
   function uid(prefix){ return prefix + '_' + Math.random().toString(36).slice(2,9); }
@@ -314,7 +361,8 @@
 
   function defaultShow(){
     return {
-      id: 'main',
+      id: null,   // assigned when actually created as a save
+      name: 'Default',
       sourceNames: SEED.sourceNames.slice(),
       lists: [
         { id: uid('list'), kind: 'router', name: 'Router (1\u2013120)', rows: JSON.parse(JSON.stringify(SEED.router)) },
@@ -331,23 +379,37 @@
   }
 
   // --- Supabase-backed storage ---
-  // A single fixed row (id: 'main') in the "shows" table holds everything:
-  // data (jsonb: {sourceNames, lists}), updated_at. See schema.sql.
+  // Every row in the "shows" table is one named save (id, name, data jsonb:
+  // {sourceNames, lists}, is_default, updated_at). Exactly one row has
+  // is_default = true at a time -- that's what loads automatically on open.
+  // See schema.sql.
 
-  async function dbGetShow(){
-    const { data, error } = await sb.from('shows').select('id,data').eq('id', 'main').maybeSingle();
+  async function dbListSaves(){
+    const { data, error } = await sb.from('shows').select('id,name,is_default').order('name');
+    if(error){ console.error(error); showDbError(error); return []; }
+    return data || [];
+  }
+  async function dbGetShowById(id){
+    const { data, error } = await sb.from('shows').select('id,name,data').eq('id', id).maybeSingle();
     if(error){ console.error(error); showDbError(error); return null; }
     if(!data) return null;
-    return { id: 'main', sourceNames: (data.data && data.data.sourceNames) || [], lists: (data.data && data.data.lists) || [] };
+    return { id: data.id, name: data.name, sourceNames: (data.data && data.data.sourceNames) || [], lists: (data.data && data.data.lists) || [] };
   }
   async function dbUpsertShow(show){
     const { error } = await sb.from('shows').upsert({
-      id: 'main',
-      name: 'main',
+      id: show.id,
+      name: show.name,
       data: { sourceNames: show.sourceNames, lists: show.lists },
       updated_at: new Date().toISOString()
     });
     if(error){ console.error(error); showDbError(error); return false; }
+    return true;
+  }
+  async function dbSetDefault(id){
+    const { error: err1 } = await sb.from('shows').update({ is_default: false }).not('id', 'is', null);
+    if(err1){ console.error(err1); showDbError(err1); return false; }
+    const { error: err2 } = await sb.from('shows').update({ is_default: true }).eq('id', id);
+    if(err2){ console.error(err2); showDbError(err2); return false; }
     return true;
   }
 
@@ -426,18 +488,76 @@
   }
 
   async function loadShow(){
-    let show = await dbGetShow();
+    let savesList = await dbListSaves();
+    let defaultMeta = savesList.find(s => s.is_default);
+
+    if(!defaultMeta && savesList.length){
+      // No default marked yet (e.g. upgrading from the old single-save setup) --
+      // promote the existing 'main' row if there is one, else just the first save.
+      defaultMeta = savesList.find(s => s.id === 'main') || savesList[0];
+      await dbSetDefault(defaultMeta.id);
+      savesList = await dbListSaves();
+      defaultMeta = savesList.find(s => s.id === defaultMeta.id);
+    }
+
+    let show = defaultMeta ? await dbGetShowById(defaultMeta.id) : null;
+
     if(!show){
+      // Nothing exists at all yet -- create a fresh default save.
       show = defaultShow();
+      show.id = uid('show');
       await dbUpsertShow(show);
+      await dbSetDefault(show.id);
+      savesList = await dbListSaves();
     } else {
       if(!show.sourceNames) show.sourceNames = [];
+      if(!show.name) show.name = 'Default';
       const changed = migrateShow(show);
       if(changed){ await dbUpsertShow(show); }
     }
+
+    state.show = show;
+    state.savesList = savesList;
+    state.activeListId = show.lists[0] ? show.lists[0].id : null;
+    state.activeGroup = show.lists[0] ? firstGroup(show.lists[0]) : null;
+  }
+
+  async function switchToSave(id){
+    if(!id || (state.show && state.show.id === id)) return;
+    const show = await dbGetShowById(id);
+    if(!show) return;
+    if(!show.sourceNames) show.sourceNames = [];
+    if(!show.name) show.name = 'Untitled';
+    const changed = migrateShow(show);
+    if(changed){ await dbUpsertShow(show); }
     state.show = show;
     state.activeListId = show.lists[0] ? show.lists[0].id : null;
     state.activeGroup = show.lists[0] ? firstGroup(show.lists[0]) : null;
+    renderAll();
+    renderSaveBar();
+  }
+
+  async function createNewSave(name){
+    if(!state.show) return;
+    const newShow = JSON.parse(JSON.stringify(state.show));
+    newShow.id = uid('show');
+    newShow.name = name;
+    const ok = await dbUpsertShow(newShow);
+    if(!ok) return;
+    state.show = newShow;
+    state.savesList = await dbListSaves();
+    renderAll();
+    renderSaveBar();
+    flashStatus('Saved');
+  }
+
+  async function setCurrentAsDefault(){
+    if(!state.show) return;
+    const ok = await dbSetDefault(state.show.id);
+    if(!ok) return;
+    state.savesList = await dbListSaves();
+    renderSaveBar();
+    flashStatus('Default set');
   }
 
 
@@ -1159,11 +1279,52 @@
     renderTable();
   }
 
+  function renderSaveBar(){
+    if(!state.show) return;
+    els.ioSaveSelect.innerHTML = '';
+    state.savesList.forEach(s=>{
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = s.name + (s.is_default ? ' (default)' : '');
+      if(s.id === state.show.id) opt.selected = true;
+      els.ioSaveSelect.appendChild(opt);
+    });
+    const newOpt = document.createElement('option');
+    newOpt.value = '__new__';
+    newOpt.textContent = '+ New Save...';
+    els.ioSaveSelect.appendChild(newOpt);
+
+    const current = state.savesList.find(s => s.id === state.show.id);
+    els.ioDefaultTag.textContent = (current && current.is_default) ? '\u2605 Default' : '';
+    els.ioSetDefaultBtn.style.display = (current && current.is_default) ? 'none' : '';
+  }
+
   // --- Events ---
   let searchDebounce;
   els.ioSearch.addEventListener('input', ()=>{
     clearTimeout(searchDebounce);
     searchDebounce = setTimeout(()=>{ state.search = els.ioSearch.value; renderTable(); }, 80);
+  });
+
+  els.ioSaveSelect.addEventListener('change', async ()=>{
+    const val = els.ioSaveSelect.value;
+    if(val === '__new__'){
+      const name = prompt('Name this new save:');
+      renderSaveBar();  // reset the dropdown back to the current save if cancelled
+      if(name && name.trim()){
+        await createNewSave(name.trim());
+      }
+      return;
+    }
+    await switchToSave(val);
+  });
+
+  els.ioSaveBtn.addEventListener('click', async ()=>{
+    await saveCurrentShow();
+  });
+
+  els.ioSetDefaultBtn.addEventListener('click', async ()=>{
+    await setCurrentAsDefault();
   });
 
   // --- Init ---
@@ -1176,6 +1337,7 @@
     }
     await loadShow();
     renderAll();
+    renderSaveBar();
   })();
 })();
 </script>
