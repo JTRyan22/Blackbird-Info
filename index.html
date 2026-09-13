@@ -120,6 +120,10 @@
   }
   .io-userbar-role.role-admin{ color:var(--amber); border-color:var(--amber-dim); }
   .io-userbar-role.role-editor{ color:var(--signal); border-color:#1f5a54; }
+  .io-userbar-show{
+    font-family:var(--mono); font-size:11px; color:var(--amber);
+    padding:3px 8px; border-radius:10px; border:1px solid var(--amber-dim);
+  }
   .io-userbar-btn{
     background:none; border:1px solid var(--line); color:var(--dim);
     border-radius:6px; padding:5px 10px; font-size:11px; font-family:var(--sans);
@@ -1689,6 +1693,12 @@
     roleTag.textContent = state.userRole;
     els.ioUserBar.appendChild(emailSpan);
     els.ioUserBar.appendChild(roleTag);
+    if(state.userRole !== 'admin' && state.show){
+      const showTag = document.createElement('span');
+      showTag.className = 'io-userbar-show';
+      showTag.textContent = state.show.name;
+      els.ioUserBar.appendChild(showTag);
+    }
     if(state.userRole === 'admin'){
       const manageBtn = document.createElement('button');
       manageBtn.className = 'io-userbar-btn';
@@ -1877,8 +1887,8 @@
     }
 
     showApp();
-    renderUserBar();
     await loadShow();
+    renderUserBar();
     renderAll();
     renderSaveBar();
     applyReadOnly();
