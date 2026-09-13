@@ -482,6 +482,9 @@
     userRole: null,   // 'admin' | 'editor' | 'viewer' | null (no access)
     readOnly: false,
     assignedShowId: null,
+    realtimeChannel: null,
+    _justSavedAt: null,
+    _pendingRemoteRefresh: false,
   };
 
   function uid(prefix){ return prefix + '_' + Math.random().toString(36).slice(2,9); }
@@ -547,6 +550,7 @@
       updated_at: new Date().toISOString()
     });
     if(error){ console.error(error); showDbError(error); return false; }
+    state._justSavedAt = Date.now();
     return true;
   }
   async function dbSetDefault(id){
@@ -690,6 +694,66 @@
     flashStatus._t = setTimeout(()=> els.ioStatus.classList.remove('show'), 1400);
   }
 
+  // --- Live updates ---
+  // Subscribes to changes on whichever show is currently loaded. Viewers get
+  // the fresh data applied automatically (always safe -- they have no local
+  // edits to lose). Editors/admins just see a banner, since silently
+  // rewriting the screen could wipe out something they're mid-typing.
+  function subscribeToShow(showId){
+    unsubscribeFromShow();
+    if(!showId) return;
+    state.realtimeChannel = sb
+      .channel('show-' + showId)
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'shows', filter: 'id=eq.' + showId },
+        (payload) => { handleRemoteShowUpdate(payload); }
+      )
+      .subscribe();
+  }
+
+  function unsubscribeFromShow(){
+    if(state.realtimeChannel){
+      sb.removeChannel(state.realtimeChannel);
+      state.realtimeChannel = null;
+    }
+  }
+
+  async function handleRemoteShowUpdate(payload){
+    if(!state.show) return;
+    // Ignore the echo of our own save landing back through the subscription.
+    if(state._justSavedAt && Date.now() - state._justSavedAt < 1500) return;
+
+    const active = document.activeElement;
+    const isTyping = active && els.ioTableWrap.contains(active) && (active.tagName === 'INPUT' || active.tagName === 'SELECT');
+
+    if(!isTyping){
+      await applyRemoteShowUpdate();
+      return;
+    }
+
+    // Something's actively focused -- wait until they blur it (click away,
+    // tab out, hit enter) before rewriting the screen, so an incoming
+    // update can't interrupt a keystroke. Only one pending listener at a time.
+    if(state._pendingRemoteRefresh) return;
+    state._pendingRemoteRefresh = true;
+    const onBlur = async ()=>{
+      active.removeEventListener('blur', onBlur);
+      state._pendingRemoteRefresh = false;
+      await applyRemoteShowUpdate();
+    };
+    active.addEventListener('blur', onBlur, { once: true });
+  }
+
+  async function applyRemoteShowUpdate(){
+    if(!state.show) return;
+    const fresh = await dbGetShowById(state.show.id);
+    if(!fresh) return;
+    state.show = fresh;
+    renderAll();
+    if(state.userRole === 'admin'){ renderSaveBar(); }
+    flashStatus('Updated');
+  }
+
   async function saveCurrentShow(){
     if(!state.show) return;
     const ok = await dbUpsertShow(state.show);
@@ -812,6 +876,7 @@
     state.show = show;
     state.activeListId = show.lists[0] ? show.lists[0].id : null;
     state.activeGroup = show.lists[0] ? firstGroup(show.lists[0]) : null;
+    subscribeToShow(show.id);
     renderAll();
     renderSaveBar();
   }
@@ -825,6 +890,7 @@
     if(!ok) return;
     state.show = newShow;
     state.savesList = await dbListSaves();
+    subscribeToShow(newShow.id);
     renderAll();
     renderSaveBar();
     flashStatus('Saved');
@@ -867,6 +933,7 @@
     state.savesList = remaining;
     state.activeListId = nextShow.lists[0] ? nextShow.lists[0].id : null;
     state.activeGroup = nextShow.lists[0] ? firstGroup(nextShow.lists[0]) : null;
+    subscribeToShow(nextShow.id);
     renderAll();
     renderSaveBar();
     flashStatus('Deleted "' + deletedName + '"');
@@ -1815,6 +1882,7 @@
     renderAll();
     renderSaveBar();
     applyReadOnly();
+    if(state.show && state.show.id){ subscribeToShow(state.show.id); }
   })();
 })();
 </script>
