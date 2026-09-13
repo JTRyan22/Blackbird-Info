@@ -90,9 +90,22 @@
     display:flex;
     align-items:center;
     gap:14px;
-    flex-wrap:wrap;
+    position:relative;
   }
-    .io-brand{ border-radius:8px; overflow:hidden; flex:1; max-width:100%; } .io-brand img{ display:block; width:100%; height:auto; }
+  .io-brand-col{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    min-width:0;
+  }
+    .io-brand{ border-radius:8px; overflow:hidden; width:100%; max-width:640px; } .io-brand img{ display:block; width:100%; height:auto; }
+  .io-brand-show{
+    margin-top:8px;
+    font-family:var(--mono); font-size:13px; color:var(--amber);
+    letter-spacing:.03em; text-align:center;
+  }
   select, input[type=text]{
     font-family:var(--sans);
     font-size:13px;
@@ -109,9 +122,9 @@
   .io-status.show{opacity:1;}
 
   .io-userbar{
-    display:flex; align-items:center; gap:10px;
+    display:flex; flex-direction:column; align-items:flex-end; gap:6px;
     font-family:var(--sans); font-size:12px; color:var(--dim);
-    margin-left:auto; margin-right:16px;
+    flex-shrink:0;
   }
   .io-userbar-role{
     text-transform:uppercase; letter-spacing:.05em; font-size:10px;
@@ -120,10 +133,6 @@
   }
   .io-userbar-role.role-admin{ color:var(--amber); border-color:var(--amber-dim); }
   .io-userbar-role.role-editor{ color:var(--signal); border-color:#1f5a54; }
-  .io-userbar-show{
-    font-family:var(--mono); font-size:11px; color:var(--amber);
-    padding:3px 8px; border-radius:10px; border:1px solid var(--amber-dim);
-  }
   .io-userbar-btn{
     background:none; border:1px solid var(--line); color:var(--dim);
     border-radius:6px; padding:5px 10px; font-size:11px; font-family:var(--sans);
@@ -394,7 +403,8 @@
 
   @media (max-width:640px){
     .io-header-top{flex-direction:column; align-items:stretch;}
-    .io-brand{width:220px;}
+    .io-brand{max-width:220px; margin:0 auto;}
+    .io-userbar{align-items:center;}
     select{min-width:0; flex:1;}
   }
 </style>
@@ -402,7 +412,10 @@
 <div id="io-app">
   <div class="io-header">
     <div class="io-header-top">
+      <div class="io-brand-col">
         <div class="io-brand"><img src="blackbird-banner.png" alt="Blackbird Tech Info"></div>
+        <div class="io-brand-show" id="ioBrandShow"></div>
+      </div>
       <div class="io-userbar" id="ioUserBar"></div>
       <div class="io-status" id="ioStatus">Saved</div>
     </div>
@@ -466,6 +479,7 @@
     ioAuthScreen: document.getElementById('ioAuthScreen'),
     ioAuthContent: document.getElementById('ioAuthContent'),
     ioUserBar: document.getElementById('ioUserBar'),
+    ioBrandShow: document.getElementById('ioBrandShow'),
     ioAccessModal: document.getElementById('ioAccessModal'),
     ioAccessModalClose: document.getElementById('ioAccessModalClose'),
     ioAccessNewEmail: document.getElementById('ioAccessNewEmail'),
@@ -1661,6 +1675,7 @@
     renderTabs();
     renderSubTabs();
     renderTable();
+    renderBrandShow();
   }
 
   function renderSaveBar(){
@@ -1693,12 +1708,6 @@
     roleTag.textContent = state.userRole;
     els.ioUserBar.appendChild(emailSpan);
     els.ioUserBar.appendChild(roleTag);
-    if(state.userRole !== 'admin' && state.show){
-      const showTag = document.createElement('span');
-      showTag.className = 'io-userbar-show';
-      showTag.textContent = state.show.name;
-      els.ioUserBar.appendChild(showTag);
-    }
     if(state.userRole === 'admin'){
       const manageBtn = document.createElement('button');
       manageBtn.className = 'io-userbar-btn';
@@ -1711,6 +1720,10 @@
     signoutBtn.textContent = 'Sign out';
     signoutBtn.addEventListener('click', signOut);
     els.ioUserBar.appendChild(signoutBtn);
+  }
+
+  function renderBrandShow(){
+    els.ioBrandShow.textContent = state.show ? state.show.name : '';
   }
 
   // Disables every editable field and hides row-add/delete controls when the
