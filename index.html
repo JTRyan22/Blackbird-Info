@@ -265,7 +265,7 @@
     cursor:pointer;
   }
   .io-save-btn:hover{ border-color:var(--amber-dim); color:var(--amber); }
-  .io-save-btn-ghost{ background:transparent; color:var(--dim); }
+
   .io-save-btn-danger{ color:var(--danger); }
   .io-save-btn-danger:hover{ border-color:var(--danger); color:var(--danger); }
   .io-save-btn:disabled{ opacity:.35; cursor:not-allowed; }
@@ -424,7 +424,6 @@
   <div class="io-savebar">
     <select class="io-save-select" id="ioSaveSelect"></select>
     <button class="io-save-btn" id="ioSaveBtn">Add Show</button>
-    <button class="io-save-btn io-save-btn-ghost" id="ioSetDefaultBtn">Set as Default</button>
     <button class="io-save-btn io-save-btn-danger" id="ioDeleteBtn">Delete Save</button>
   </div>
 
@@ -471,7 +470,7 @@
     ioTableWrap: document.getElementById('ioTableWrap'),
     ioSaveSelect: document.getElementById('ioSaveSelect'),
     ioSaveBtn: document.getElementById('ioSaveBtn'),
-    ioSetDefaultBtn: document.getElementById('ioSetDefaultBtn'),
+
     ioDeleteBtn: document.getElementById('ioDeleteBtn'),
     ioApp: document.getElementById('io-app'),
     ioAuthScreen: document.getElementById('ioAuthScreen'),
@@ -961,15 +960,6 @@
     renderAll();
     renderSaveBar();
     flashStatus('Saved');
-  }
-
-  async function setCurrentAsDefault(){
-    if(!state.show) return;
-    const ok = await dbSetDefault(state.show.id);
-    if(!ok) return;
-    state.savesList = await dbListSaves();
-    renderSaveBar();
-    flashStatus('Default set');
   }
 
   async function deleteCurrentSave(){
@@ -1753,8 +1743,6 @@
       els.ioSaveSelect.appendChild(opt);
     });
 
-    const current = state.savesList.find(s => s.id === state.show.id);
-    els.ioSetDefaultBtn.style.display = (current && current.is_default) ? 'none' : '';
     els.ioDeleteBtn.disabled = state.savesList.length <= 1;
   }
 
@@ -1903,10 +1891,6 @@
     if(name && name.trim()){
       await createNewSave(name.trim());
     }
-  });
-
-  els.ioSetDefaultBtn.addEventListener('click', async ()=>{
-    await setCurrentAsDefault();
   });
 
   els.ioDeleteBtn.addEventListener('click', async ()=>{
