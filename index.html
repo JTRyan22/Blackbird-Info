@@ -1854,6 +1854,17 @@
     searchDebounce = setTimeout(()=>{ state.search = els.ioSearch.value; renderTable(); }, 80);
   });
 
+  // Pressing Enter in any table field just blurs it, which fires the
+  // browser's native 'change' event -- the same path a click-away already
+  // uses to save. One delegated listener covers every field, including
+  // ones added after this point, since the table gets rebuilt on render.
+  els.ioTableWrap.addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter' && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')){
+      e.preventDefault();
+      e.target.blur();
+    }
+  });
+
   els.ioSaveSelect.addEventListener('change', async ()=>{
     await switchToSave(els.ioSaveSelect.value);
   });
