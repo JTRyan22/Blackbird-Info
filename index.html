@@ -1932,6 +1932,18 @@
   // here, but the debounce window is short (400ms) so the risk is small.
   window.addEventListener('beforeunload', ()=>{ flushPendingSave(); });
 
+  // Mobile browsers (and installed/home-screen apps) commonly suspend a
+  // backgrounded tab entirely, including its open websocket -- so the
+  // realtime subscription above can silently die while you're away. When
+  // the tab becomes visible again, pull the latest data once and reopen
+  // the realtime channel, so you see current data without a manual reload.
+  document.addEventListener('visibilitychange', async ()=>{
+    if(document.visibilityState !== 'visible') return;
+    if(!state.show || !state.show.id) return;
+    await applyRemoteShowUpdate();
+    subscribeToShow(state.show.id);
+  });
+
   // --- Init ---
   (async function init(){
     if(SUPABASE_URL === "YOUR_SUPABASE_URL" || SUPABASE_ANON_KEY === "YOUR_SUPABASE_ANON_KEY"){
