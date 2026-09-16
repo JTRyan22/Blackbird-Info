@@ -1452,6 +1452,7 @@
           wrap.appendChild(chain);
           const input = document.createElement('input');
           input.type = 'text';
+          input.setAttribute('enterkeyhint', 'done');
           input.value = listFieldForPort(kind, port, field) || '';
           input.placeholder = '\u2014 unassigned on ' + fieldSideLabel(kind, port, field) + ' \u2014';
           autoSizeInput(input);
@@ -1500,6 +1501,7 @@
           } else if(list.kind === 'stage-rack-a' || list.kind === 'stage-rack-b' || list.kind === 'io-panel' || list.kind === 'patch-panel' || list.kind === 'router' || list.kind === 'switcher'){
             const textInput = document.createElement('input');
             textInput.type = 'text';
+            textInput.setAttribute('enterkeyhint', 'done');
             textInput.value = row.input || '';
             textInput.placeholder = '\u2014';
             autoSizeInput(textInput);
@@ -1541,6 +1543,7 @@
             const bidiSource = findBidiSourceInto(list.kind, row.port, 'label');
             const input = document.createElement('input');
             input.type = 'text';
+            input.setAttribute('enterkeyhint', 'done');
             input.value = row.label || '';
             input.placeholder = bidiSource ? ('\u2014 unassigned on ' + reverseSideLabel(bidiSource.list.kind, bidiSource.row.port, bidiSource.prefix) + ' \u2014') : '\u2014';
             autoSizeInput(input);
@@ -1579,6 +1582,7 @@
           } else {
             const input = document.createElement('input');
             input.type = 'text';
+            input.setAttribute('enterkeyhint', 'done');
             input.value = row.output || '';
             input.placeholder = '\u2014';
             autoSizeInput(input);
@@ -1616,6 +1620,7 @@
           tdDest.className = 'cell-edit';
           const destInput = document.createElement('input');
           destInput.type = 'text';
+          destInput.setAttribute('enterkeyhint', 'done');
           destInput.value = row.destination || '';
           destInput.placeholder = '\u2014';
           autoSizeInput(destInput);
@@ -1639,6 +1644,7 @@
             const bidiSource = findBidiSourceInto(list.kind, row.port, 'label2');
             const input = document.createElement('input');
             input.type = 'text';
+            input.setAttribute('enterkeyhint', 'done');
             input.value = row.label2 || '';
             input.placeholder = bidiSource ? ('\u2014 unassigned on ' + reverseSideLabel(bidiSource.list.kind, bidiSource.row.port, bidiSource.prefix) + ' \u2014') : '\u2014';
             autoSizeInput(input);
@@ -1676,6 +1682,7 @@
           } else {
             const destInput = document.createElement('input');
             destInput.type = 'text';
+            destInput.setAttribute('enterkeyhint', 'done');
             destInput.value = row.destination || '';
             destInput.placeholder = '\u2014';
             autoSizeInput(destInput);
