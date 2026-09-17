@@ -828,6 +828,10 @@
       }
     }
 
+    if(state.userRole === 'admin'){
+      state.savesList = await dbListSaves();
+    }
+
     showApp();
     renderUserBar();
     renderAll();
@@ -1841,6 +1845,7 @@
       document.querySelector('.io-savebar').style.display = 'none';
       return;
     }
+    document.querySelector('.io-savebar').style.display = '';
     els.ioSaveSelect.innerHTML = '';
     state.savesList.forEach(s=>{
       const opt = document.createElement('option');
