@@ -505,6 +505,7 @@
     readOnly: false,
     assignedShowId: null,
     realtimeChannel: null,
+    accessChannel: null,
     _justSavedAt: null,
     _pendingRemoteRefresh: false,
   };
@@ -753,6 +754,86 @@
       sb.removeChannel(state.realtimeChannel);
       state.realtimeChannel = null;
     }
+  }
+
+  // Subscribes to changes on the current user's own row in user_access, so
+  // that when an admin changes their role or (for editors/viewers) which
+  // show they're assigned to, it applies live -- no reload needed. Every
+  // signed-in tab does this, admins included, in case an admin's own role
+  // ever gets changed by another admin.
+  function subscribeToMyAccess(email){
+    unsubscribeFromMyAccess();
+    if(!email) return;
+    state.accessChannel = sb
+      .channel('access-' + email.replace(/[^a-zA-Z0-9]/g, '_'))
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'user_access', filter: 'email=eq.' + email },
+        (payload) => { handleMyAccessChange(payload); }
+      )
+      .subscribe();
+  }
+
+  function unsubscribeFromMyAccess(){
+    if(state.accessChannel){
+      sb.removeChannel(state.accessChannel);
+      state.accessChannel = null;
+    }
+  }
+
+  async function handleMyAccessChange(payload){
+    if(payload.eventType === 'DELETE'){
+      await applyAccessChange(null);
+      return;
+    }
+    await applyAccessChange(payload.new);
+  }
+
+  // Applies a fresh access row (role + assigned_show_id) to the running
+  // app. Switches the loaded show live if an admin reassigned it, without
+  // touching anything the person is actively doing otherwise.
+  async function applyAccessChange(newAccess){
+    if(!newAccess){
+      unsubscribeFromShow();
+      unsubscribeFromMyAccess();
+      renderNoAccessScreen(state.userEmail);
+      return;
+    }
+
+    const newShowId = newAccess.assigned_show_id || null;
+    const showChanged = newAccess.role !== 'admin' &&
+      (!state.show || state.show.id !== newShowId);
+    const roleChanged = newAccess.role !== state.userRole;
+
+    state.userRole = newAccess.role;
+    state.assignedShowId = newShowId;
+    state.readOnly = (newAccess.role === 'viewer');
+
+    if(state.userRole !== 'admin' && !state.assignedShowId){
+      unsubscribeFromShow();
+      renderNoShowAssignedScreen(state.userEmail);
+      return;
+    }
+
+    if(showChanged && state.userRole !== 'admin'){
+      await flushPendingSave();
+      const show = await dbGetShowById(newShowId);
+      if(show){
+        if(!show.sourceNames) show.sourceNames = [];
+        if(!show.name) show.name = 'Default';
+        migrateShow(show);
+        state.show = show;
+        state.activeListId = show.lists[0] ? show.lists[0].id : null;
+        state.activeGroup = show.lists[0] ? firstGroup(show.lists[0]) : null;
+        subscribeToShow(show.id);
+      }
+    }
+
+    showApp();
+    renderUserBar();
+    renderAll();
+    if(state.userRole === 'admin'){ renderSaveBar(); }
+    applyReadOnly();
+    if(showChanged || roleChanged){ flashStatus('Access updated'); }
   }
 
   async function handleRemoteShowUpdate(payload){
@@ -1958,9 +2039,14 @@
   // the realtime channel, so you see current data without a manual reload.
   document.addEventListener('visibilitychange', async ()=>{
     if(document.visibilityState !== 'visible') return;
-    if(!state.show || !state.show.id) return;
-    await applyRemoteShowUpdate();
-    subscribeToShow(state.show.id);
+    if(!state.userEmail) return;
+    const access = await dbGetMyAccess(state.userEmail);
+    await applyAccessChange(access);
+    subscribeToMyAccess(state.userEmail);
+    if(state.show && state.show.id){
+      await applyRemoteShowUpdate();
+      subscribeToShow(state.show.id);
+    }
   });
 
   // --- Init ---
@@ -2004,6 +2090,7 @@
     renderSaveBar();
     applyReadOnly();
     if(state.show && state.show.id){ subscribeToShow(state.show.id); }
+    subscribeToMyAccess(email);
   })();
 })();
 </script>
