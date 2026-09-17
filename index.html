@@ -1493,11 +1493,16 @@
   // read-only (viewer) fields are disabled -- and a disabled input never
   // receives focus at all, so relying on focus alone would leave viewers
   // with no way to see the indicator on a field they can't click into.
-  // On desktop: hovering shows who/what changed; moving the mouse off
-  // clears it for this person right then (synced everywhere they're
-  // signed in). Once they've seen it, hovering shows nothing more for
-  // them -- but the underlying record is untouched, so it's still fully
-  // visible to anyone else who hasn't looked yet.
+  // On desktop: hovering shows who/what changed. Moving the mouse off
+  // doesn't close it instantly -- there's a short grace period first, so
+  // briefly passing over the field doesn't lose the tooltip before it's
+  // read. Moving back over it within that window cancels the close
+  // entirely; letting it run out closes it and marks it seen for this
+  // person (synced everywhere they're signed in). Once seen, hovering
+  // shows nothing more for them -- but the underlying record is
+  // untouched, so it's still fully visible to anyone who hasn't looked.
+  const CHANGE_TOOLTIP_LINGER_MS = 2000;
+
   async function openChangeIndicator(el, kind, port, field){
     if(!isUnseen(kind, port, field)) return;
     const change = changeFor(kind, port, field);
@@ -1514,18 +1519,37 @@
   function wireChangeIndicator(el, kind, port, field){
     el.classList.toggle('field-changed', isUnseen(kind, port, field));
     const cell = el.closest('td') || el;
+    let closeTimer = null;
 
-    cell.addEventListener('mouseenter', ()=> openChangeIndicator(el, kind, port, field));
+    const cancelPendingClose = ()=>{
+      if(closeTimer){ clearTimeout(closeTimer); closeTimer = null; }
+    };
+    const open = ()=>{
+      cancelPendingClose();
+      openChangeIndicator(el, kind, port, field);
+    };
+    const scheduleClose = ()=>{
+      cancelPendingClose();
+      closeTimer = setTimeout(()=>{
+        closeTimer = null;
+        closeChangeIndicator(el, kind, port, field);
+      }, CHANGE_TOOLTIP_LINGER_MS);
+    };
+
+    cell.addEventListener('mouseenter', open);
     cell.addEventListener('mouseleave', ()=>{
       // Still actively focused (typing) -- don't yank the tooltip out from
       // under a keyboard-driven edit just because the mouse moved off.
       if(document.activeElement === el) return;
+      scheduleClose();
+    });
+    cell.addEventListener('click', open);
+    cell.addEventListener('touchstart', open, { passive: true });
+    el.addEventListener('focus', open);
+    el.addEventListener('blur', ()=>{
+      cancelPendingClose();
       closeChangeIndicator(el, kind, port, field);
     });
-    cell.addEventListener('click', ()=> openChangeIndicator(el, kind, port, field));
-    cell.addEventListener('touchstart', ()=> openChangeIndicator(el, kind, port, field), { passive: true });
-    el.addEventListener('focus', ()=> openChangeIndicator(el, kind, port, field));
-    el.addEventListener('blur', ()=> closeChangeIndicator(el, kind, port, field));
   }
 
   function listLabel(kind){
