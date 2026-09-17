@@ -1217,11 +1217,23 @@
     'audio': 'Audio',
   };
 
+  // Fixed display order for sub-tabs, independent of whatever order rows
+  // happen to be in for a given saved show. Groups not listed here just
+  // fall in after these, in whatever order they're first encountered.
+  const GROUP_ORDER = ['sdi', 'fiber', 'cat6', 'audio', 'mux', 'fiber-ties', 'network'];
+
   function groupsForList(list){
     if(!list) return [];
     const seen = [];
     list.rows.forEach(r=>{
       if(r.group && !seen.includes(r.group)) seen.push(r.group);
+    });
+    seen.sort((a, b)=>{
+      const ai = GROUP_ORDER.indexOf(a), bi = GROUP_ORDER.indexOf(b);
+      if(ai === -1 && bi === -1) return 0;
+      if(ai === -1) return 1;
+      if(bi === -1) return -1;
+      return ai - bi;
     });
     return seen;
   }
