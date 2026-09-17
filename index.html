@@ -631,6 +631,17 @@
     return true;
   }
 
+  // Admins aren't restricted to one show, but we still record whichever one
+  // they're currently looking at on their own user_access row -- that's how
+  // opening the app on another device picks up the same show they were just
+  // on, instead of always landing back on the default.
+  async function dbSetMyCurrentShow(email, showId){
+    const { error } = await sb.from('user_access')
+      .update({ assigned_show_id: showId })
+      .eq('email', email.trim().toLowerCase());
+    if(error){ console.error(error); }
+  }
+
   async function dbRemoveAccess(email){
     const { error } = await sb.from('user_access').delete().eq('email', email);
     if(error){ console.error(error); alert('Could not remove: ' + error.message); return false; }
@@ -789,8 +800,10 @@
   }
 
   // Applies a fresh access row (role + assigned_show_id) to the running
-  // app. Switches the loaded show live if an admin reassigned it, without
-  // touching anything the person is actively doing otherwise.
+  // app. Switches the loaded show live if it changed -- either an admin
+  // reassigned an editor/viewer's show, or the signed-in admin switched
+  // shows on another device -- without touching anything the person is
+  // actively doing otherwise.
   async function applyAccessChange(newAccess){
     if(!newAccess){
       unsubscribeFromShow();
@@ -800,8 +813,7 @@
     }
 
     const newShowId = newAccess.assigned_show_id || null;
-    const showChanged = newAccess.role !== 'admin' &&
-      (!state.show || state.show.id !== newShowId);
+    const showChanged = !!newShowId && (!state.show || state.show.id !== newShowId);
     const roleChanged = newAccess.role !== state.userRole;
 
     state.userRole = newAccess.role;
@@ -814,7 +826,7 @@
       return;
     }
 
-    if(showChanged && state.userRole !== 'admin'){
+    if(showChanged){
       await flushPendingSave();
       const show = await dbGetShowById(newShowId);
       if(show){
@@ -984,7 +996,9 @@
       return;
     }
 
-    // Admins: full multi-save access, same as before.
+    // Admins: full multi-save access, same as before -- but resume whichever
+    // show they were last looking at (synced via their own user_access row)
+    // instead of always landing on the default.
     let savesList = await dbListSaves();
     let defaultMeta = savesList.find(s => s.is_default);
 
@@ -995,7 +1009,11 @@
       defaultMeta = savesList.find(s => s.id === defaultMeta.id);
     }
 
-    let show = defaultMeta ? await dbGetShowById(defaultMeta.id) : null;
+    const preferredId = state.assignedShowId;
+    const preferredMeta = preferredId ? savesList.find(s => s.id === preferredId) : null;
+    const targetMeta = preferredMeta || defaultMeta;
+
+    let show = targetMeta ? await dbGetShowById(targetMeta.id) : null;
 
     if(!show){
       show = defaultShow();
@@ -1014,6 +1032,13 @@
     state.savesList = savesList;
     state.activeListId = show.lists[0] ? show.lists[0].id : null;
     state.activeGroup = show.lists[0] ? firstGroup(show.lists[0]) : null;
+
+    // First-ever load, or their remembered show got deleted since -- record
+    // whatever they actually landed on so other devices stay in sync too.
+    if(state.assignedShowId !== show.id){
+      state.assignedShowId = show.id;
+      await dbSetMyCurrentShow(state.userEmail, show.id);
+    }
   }
 
   async function switchToSave(id){
@@ -1030,6 +1055,8 @@
       state.activeListId = show.lists[0] ? show.lists[0].id : null;
       state.activeGroup = show.lists[0] ? firstGroup(show.lists[0]) : null;
       subscribeToShow(show.id);
+      state.assignedShowId = show.id;
+      await dbSetMyCurrentShow(state.userEmail, show.id);
       renderAll();
       renderSaveBar();
     } catch(err){
@@ -1049,6 +1076,8 @@
     state.show = newShow;
     state.savesList = await dbListSaves();
     subscribeToShow(newShow.id);
+    state.assignedShowId = newShow.id;
+    await dbSetMyCurrentShow(state.userEmail, newShow.id);
     renderAll();
     renderSaveBar();
     flashStatus('Saved');
@@ -1090,6 +1119,8 @@
       state.activeListId = nextShow.lists[0] ? nextShow.lists[0].id : null;
       state.activeGroup = nextShow.lists[0] ? firstGroup(nextShow.lists[0]) : null;
       subscribeToShow(nextShow.id);
+      state.assignedShowId = nextShow.id;
+      await dbSetMyCurrentShow(state.userEmail, nextShow.id);
       renderAll();
       renderSaveBar();
       flashStatus('Deleted "' + deletedName + '"');
