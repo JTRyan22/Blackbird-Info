@@ -1491,60 +1491,41 @@
   // Wires the "changed" highlight + tooltip onto a rendered cell element.
   // Bound to the containing cell rather than just the input, because
   // read-only (viewer) fields are disabled -- and a disabled input never
-  // receives focus at all, so relying on focus alone would leave mobile
-  // viewers with no way to ever see or clear the indicator. Hovering shows
-  // a preview; clicking/tapping pins it open (works even when the field
-  // itself is disabled); leaving it -- blur, clicking elsewhere, or tapping
-  // away -- closes it and marks it seen for this person, on every device.
-  let activeChangeField = null;
+  // receives focus at all, so relying on focus alone would leave viewers
+  // with no way to see the indicator on a field they can't click into.
+  // On desktop: hovering shows who/what changed; moving the mouse off
+  // clears it for this person right then (synced everywhere they're
+  // signed in). Once they've seen it, hovering shows nothing more for
+  // them -- but the underlying record is untouched, so it's still fully
+  // visible to anyone else who hasn't looked yet.
+  async function openChangeIndicator(el, kind, port, field){
+    if(!isUnseen(kind, port, field)) return;
+    const change = changeFor(kind, port, field);
+    if(!change) return;
+    showChangeTooltip(el, change);
+  }
 
-  async function closeActiveChangeField(){
-    if(!activeChangeField) return;
-    const { kind, port, field, el } = activeChangeField;
+  async function closeChangeIndicator(el, kind, port, field){
     hideChangeTooltip();
-    activeChangeField = null;
     el.classList.remove('field-changed');
     await markSeenAndSync(kind, port, field);
   }
 
-  document.addEventListener('click', (e)=>{
-    if(activeChangeField && !activeChangeField.cellEl.contains(e.target)){
-      closeActiveChangeField();
-    }
-  }, true);
-
   function wireChangeIndicator(el, kind, port, field){
-    const apply = ()=>{
-      if(activeChangeField && activeChangeField.el === el) return; // stays pinned while open
-      el.classList.toggle('field-changed', isUnseen(kind, port, field));
-    };
-    apply();
+    el.classList.toggle('field-changed', isUnseen(kind, port, field));
     const cell = el.closest('td') || el;
 
-    const preview = ()=>{
-      if(activeChangeField) return; // something's already pinned open
-      const change = changeFor(kind, port, field);
-      if(change){ showChangeTooltip(el, change); }
-    };
-    const unpreview = ()=>{
-      if(!activeChangeField){ hideChangeTooltip(); }
-    };
-    const pin = ()=>{
-      if(activeChangeField && activeChangeField.el !== el){ closeActiveChangeField(); }
-      const change = changeFor(kind, port, field);
-      if(!change) return;
-      activeChangeField = { el, kind, port, field, cellEl: cell };
-      showChangeTooltip(el, change);
-    };
-
-    cell.addEventListener('mouseenter', preview);
-    cell.addEventListener('mouseleave', unpreview);
-    cell.addEventListener('click', pin);
-    cell.addEventListener('touchstart', pin, { passive: true });
-    el.addEventListener('focus', pin);
-    el.addEventListener('blur', ()=>{
-      if(activeChangeField && activeChangeField.el === el){ closeActiveChangeField(); }
+    cell.addEventListener('mouseenter', ()=> openChangeIndicator(el, kind, port, field));
+    cell.addEventListener('mouseleave', ()=>{
+      // Still actively focused (typing) -- don't yank the tooltip out from
+      // under a keyboard-driven edit just because the mouse moved off.
+      if(document.activeElement === el) return;
+      closeChangeIndicator(el, kind, port, field);
     });
+    cell.addEventListener('click', ()=> openChangeIndicator(el, kind, port, field));
+    cell.addEventListener('touchstart', ()=> openChangeIndicator(el, kind, port, field), { passive: true });
+    el.addEventListener('focus', ()=> openChangeIndicator(el, kind, port, field));
+    el.addEventListener('blur', ()=> closeChangeIndicator(el, kind, port, field));
   }
 
   function listLabel(kind){
