@@ -1662,6 +1662,23 @@
   // Reference-based dropdown for Router's Source: each option's VALUE is a router
   // port number (a stable identity), while its displayed TEXT is that port's current
   // live Input/Label combo -- so the selection survives renames on the referenced row.
+  // The combined "Input: Label" text shown for a router port -- used both
+  // to build the Source dropdown's option list and, so change records
+  // capture the full descriptive name rather than a bare port number, to
+  // describe what a Source reference pointed at before/after an edit.
+  function routerSourceRefDisplay(port){
+    if(port === null || port === undefined || port === ''){ return ''; }
+    const rt = listByKind('router');
+    const exists = rt && rt.rows.some(r => Number(r.port) === Number(port));
+    if(!exists){ return 'Router port ' + port + ' (no longer available)'; }
+    const input = listFieldForPort('router', port, 'input');
+    const label = listFieldForPort('router', port, 'label');
+    if(input && label) return input + ': ' + label;
+    if(input) return input;
+    if(label) return label;
+    return 'Router port ' + port;
+  }
+
   function makeRouterSourceRefDropdown(currentRefPort){
     const select = document.createElement('select');
     const blank = document.createElement('option');
@@ -1671,12 +1688,7 @@
     let found = false;
     if(rt){
       rt.rows.forEach(r=>{
-        const input = listFieldForPort('router', r.port, 'input');
-        const label = listFieldForPort('router', r.port, 'label');
-        let combined = '';
-        if(input && label) combined = input + ': ' + label;
-        else if(input) combined = input;
-        else if(label) combined = label;
+        const combined = routerSourceRefDisplay(r.port);
         if(!combined) return;
         const opt = document.createElement('option');
         opt.value = String(r.port);
@@ -1992,9 +2004,10 @@
             const srcSelect = makeRouterSourceRefDropdown(row.sourceRefPort);
             wireChangeIndicator(srcSelect, list.kind, row.port, 'sourceRefPort');
             srcSelect.addEventListener('change', async ()=>{
-              const oldValue = row.sourceRefPort;
+              const oldDisplay = routerSourceRefDisplay(row.sourceRefPort);
               row.sourceRefPort = srcSelect.value ? Number(srcSelect.value) : null;
-              recordFieldChange(list.kind, row.port, 'sourceRefPort', oldValue, row.sourceRefPort);
+              const newDisplay = routerSourceRefDisplay(row.sourceRefPort);
+              recordFieldChange(list.kind, row.port, 'sourceRefPort', oldDisplay, newDisplay);
               await saveCurrentShow();
               if(list.kind === 'router'){ renderTable(); }
             });
