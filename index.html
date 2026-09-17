@@ -835,7 +835,7 @@
     showApp();
     renderUserBar();
     renderAll();
-    if(state.userRole === 'admin'){ renderSaveBar(); }
+    renderSaveBar();
     applyReadOnly();
     if(showChanged || roleChanged){ flashStatus('Access updated'); }
   }
