@@ -380,6 +380,34 @@
     white-space:nowrap;
   }
   .cell-linked .chain{ font-size:12px; opacity:.8; }
+
+  /* Field-changed indicator: unseen only -- once looked at, it reverts to
+     the normal look above with no lingering trace. */
+  .field-changed{
+    background:#ffd633 !important;
+    color:#1a1204 !important;
+  }
+  .field-changed::placeholder{ color:#6b5a10; opacity:1; }
+
+  .change-tooltip{
+    position:fixed;
+    z-index:500;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:9px 13px;
+    font-family:var(--sans);
+    font-size:12px;
+    line-height:1.5;
+    color:var(--text);
+    max-width:260px;
+    box-shadow:0 8px 24px rgba(0,0,0,.5);
+    pointer-events:none;
+  }
+  .change-tooltip .ct-by{ color:var(--signal); font-family:var(--mono); font-size:11px; margin-bottom:4px; word-break:break-all; }
+  .change-tooltip .ct-prev{ color:var(--text); }
+  .change-tooltip .ct-time{ color:var(--dim); font-size:11px; margin-top:4px; }
+
   .row-del{
     background:none;border:none;color:var(--dim);cursor:pointer;
     font-size:15px; padding:6px; opacity:.5;
@@ -506,6 +534,7 @@
     assignedShowId: null,
     realtimeChannel: null,
     accessChannel: null,
+    seen: {},
     _justSavedAt: null,
     _pendingRemoteRefresh: false,
   };
@@ -578,13 +607,19 @@
     const { data, error } = await sb.from('shows').select('id,name,data').eq('id', id).maybeSingle();
     if(error){ console.error(error); showDbError(error); return null; }
     if(!data) return null;
-    return { id: data.id, name: data.name, sourceNames: (data.data && data.data.sourceNames) || [], lists: (data.data && data.data.lists) || [] };
+    return {
+      id: data.id,
+      name: data.name,
+      sourceNames: (data.data && data.data.sourceNames) || [],
+      lists: (data.data && data.data.lists) || [],
+      fieldChanges: (data.data && data.data.fieldChanges) || {}
+    };
   }
   async function dbUpsertShow(show){
     const { error } = await sb.from('shows').upsert({
       id: show.id,
       name: show.name,
-      data: { sourceNames: show.sourceNames, lists: show.lists },
+      data: { sourceNames: show.sourceNames, lists: show.lists, fieldChanges: show.fieldChanges || {} },
       updated_at: new Date().toISOString()
     });
     if(error){ console.error(error); showDbError(error); return false; }
@@ -607,7 +642,7 @@
   // --- Auth & access control ---
 
   async function dbGetMyAccess(email){
-    const { data, error } = await sb.from('user_access').select('email,role,assigned_show_id').eq('email', email).maybeSingle();
+    const { data, error } = await sb.from('user_access').select('email,role,assigned_show_id,seen').eq('email', email).maybeSingle();
     if(error){ console.error(error); return null; }
     return data || null;
   }
@@ -640,6 +675,21 @@
       .update({ assigned_show_id: showId })
       .eq('email', email.trim().toLowerCase());
     if(error){ console.error(error); }
+  }
+
+  // Records that this user has now seen a particular field's latest change
+  // (keyed by show + field, see changeKey()), so the highlight for it goes
+  // away for them -- on every device they're signed into, since this lives
+  // on their own user_access row and syncs the same way role/show do.
+  // Read-merge-write because multiple fields can get marked seen in quick
+  // succession and each write must not clobber the others.
+  async function dbMarkSeen(email, fullKey, at){
+    const e = email.trim().toLowerCase();
+    const { data, error } = await sb.from('user_access').select('seen').eq('email', e).maybeSingle();
+    if(error){ console.error(error); return; }
+    const seen = Object.assign({}, (data && data.seen) || {}, { [fullKey]: at });
+    const { error: err2 } = await sb.from('user_access').update({ seen }).eq('email', e);
+    if(err2){ console.error(err2); }
   }
 
   async function dbRemoveAccess(email){
@@ -815,10 +865,12 @@
     const newShowId = newAccess.assigned_show_id || null;
     const showChanged = !!newShowId && (!state.show || state.show.id !== newShowId);
     const roleChanged = newAccess.role !== state.userRole;
+    const seenChanged = JSON.stringify(newAccess.seen || {}) !== JSON.stringify(state.seen || {});
 
     state.userRole = newAccess.role;
     state.assignedShowId = newShowId;
     state.readOnly = (newAccess.role === 'viewer');
+    state.seen = newAccess.seen || {};
 
     if(state.userRole !== 'admin' && !state.assignedShowId){
       unsubscribeFromShow();
@@ -1315,6 +1367,186 @@
     return FIELD_DISPLAY_NAMES[field] || 'Input';
   }
 
+  // --- Field change tracking ("who changed this, and what was it before") ---
+  // One record per canonical field (list kind + port + field name -- the
+  // same identity linked/mirrored cells already resolve to), living inside
+  // the show's own data so it rides along with every save/sync. Whether a
+  // given person has *seen* that record is tracked separately, per person,
+  // on their own user_access row, so it syncs across their own devices
+  // without affecting what anyone else sees.
+
+  function changeKey(kind, port, field){
+    return kind + ':' + port + ':' + (field || 'input');
+  }
+
+  function seenStorageKey(showId, key){
+    return showId + '::' + key;
+  }
+
+  // Called right before a field's new value is saved. Records who changed
+  // it and what it was, and immediately marks it "seen" for the author --
+  // you already know what you just typed, so it should never light up for
+  // you.
+  function recordFieldChange(kind, port, field, oldValue, newValue){
+    oldValue = (oldValue === null || oldValue === undefined) ? '' : oldValue;
+    newValue = (newValue === null || newValue === undefined) ? '' : newValue;
+    if(oldValue === newValue) return;
+    if(!state.show) return;
+    if(!state.show.fieldChanges) state.show.fieldChanges = {};
+    const key = changeKey(kind, port, field);
+    const at = Date.now();
+    state.show.fieldChanges[key] = { by: state.userEmail, at: at, prev: oldValue };
+    const fullKey = seenStorageKey(state.show.id, key);
+    state.seen[fullKey] = at;
+    dbMarkSeen(state.userEmail, fullKey, at);
+  }
+
+  // True if this field has a change on record that this person hasn't
+  // looked at yet, and it wasn't them who made it.
+  function isUnseen(kind, port, field){
+    if(!state.show || !state.show.fieldChanges) return false;
+    const change = state.show.fieldChanges[changeKey(kind, port, field)];
+    if(!change) return false;
+    if(change.by === state.userEmail) return false;
+    const fullKey = seenStorageKey(state.show.id, changeKey(kind, port, field));
+    return state.seen[fullKey] !== change.at;
+  }
+
+  function changeFor(kind, port, field){
+    if(!state.show || !state.show.fieldChanges) return null;
+    return state.show.fieldChanges[changeKey(kind, port, field)] || null;
+  }
+
+  // Marks a field seen for the current person the moment they look at it
+  // (focus/tap), persisted so it stays seen on every device they use.
+  async function markSeenAndSync(kind, port, field){
+    const change = changeFor(kind, port, field);
+    if(!change) return;
+    const fullKey = seenStorageKey(state.show.id, changeKey(kind, port, field));
+    if(state.seen[fullKey] === change.at) return;
+    state.seen[fullKey] = change.at;
+    await dbMarkSeen(state.userEmail, fullKey, change.at);
+  }
+
+  function relativeTime(at){
+    const secs = Math.max(0, Math.round((Date.now() - at) / 1000));
+    if(secs < 60) return 'just now';
+    const mins = Math.round(secs / 60);
+    if(mins < 60) return mins + (mins === 1 ? ' minute ago' : ' minutes ago');
+    const hrs = Math.round(mins / 60);
+    if(hrs < 24) return hrs + (hrs === 1 ? ' hour ago' : ' hours ago');
+    const days = Math.round(hrs / 24);
+    return days + (days === 1 ? ' day ago' : ' days ago');
+  }
+
+  let changeTooltipEl = null;
+  function showChangeTooltip(anchorEl, change){
+    hideChangeTooltip();
+    const tip = document.createElement('div');
+    tip.className = 'change-tooltip';
+    const by = document.createElement('div');
+    by.className = 'ct-by';
+    by.textContent = change.by;
+    const prev = document.createElement('div');
+    prev.className = 'ct-prev';
+    const prevStr = (change.prev === null || change.prev === undefined) ? '' : String(change.prev);
+    prev.textContent = 'Was: ' + (prevStr.length ? prevStr : '\u2014 empty \u2014');
+    const time = document.createElement('div');
+    time.className = 'ct-time';
+    time.textContent = relativeTime(change.at);
+    tip.appendChild(by);
+    tip.appendChild(prev);
+    tip.appendChild(time);
+    document.body.appendChild(tip);
+    changeTooltipEl = tip;
+
+    // Position so it never overlaps the field itself -- prefer above,
+    // fall back below if there isn't room, and clamp horizontally so it
+    // never runs off the right edge (relevant on a scrolled-wide table
+    // or a narrow phone screen).
+    const rect = anchorEl.getBoundingClientRect();
+    const tipRect = tip.getBoundingClientRect();
+    const gap = 6;
+    let top = rect.top - tipRect.height - gap;
+    if(top < 4){ top = rect.bottom + gap; }
+    // On mobile the keyboard covers the lower half of the screen once a
+    // field is focused -- bias upward when there's any room at all.
+    if(top + tipRect.height > window.innerHeight - 4 && rect.top - tipRect.height - gap >= 4){
+      top = rect.top - tipRect.height - gap;
+    }
+    let left = rect.left;
+    if(left + tipRect.width > window.innerWidth - 4){ left = window.innerWidth - tipRect.width - 4; }
+    if(left < 4){ left = 4; }
+    tip.style.top = top + 'px';
+    tip.style.left = left + 'px';
+  }
+
+  function hideChangeTooltip(){
+    if(changeTooltipEl){
+      changeTooltipEl.remove();
+      changeTooltipEl = null;
+    }
+  }
+
+  // Wires the "changed" highlight + tooltip onto a rendered cell element.
+  // Bound to the containing cell rather than just the input, because
+  // read-only (viewer) fields are disabled -- and a disabled input never
+  // receives focus at all, so relying on focus alone would leave mobile
+  // viewers with no way to ever see or clear the indicator. Hovering shows
+  // a preview; clicking/tapping pins it open (works even when the field
+  // itself is disabled); leaving it -- blur, clicking elsewhere, or tapping
+  // away -- closes it and marks it seen for this person, on every device.
+  let activeChangeField = null;
+
+  async function closeActiveChangeField(){
+    if(!activeChangeField) return;
+    const { kind, port, field, el } = activeChangeField;
+    hideChangeTooltip();
+    activeChangeField = null;
+    el.classList.remove('field-changed');
+    await markSeenAndSync(kind, port, field);
+  }
+
+  document.addEventListener('click', (e)=>{
+    if(activeChangeField && !activeChangeField.cellEl.contains(e.target)){
+      closeActiveChangeField();
+    }
+  }, true);
+
+  function wireChangeIndicator(el, kind, port, field){
+    const apply = ()=>{
+      if(activeChangeField && activeChangeField.el === el) return; // stays pinned while open
+      el.classList.toggle('field-changed', isUnseen(kind, port, field));
+    };
+    apply();
+    const cell = el.closest('td') || el;
+
+    const preview = ()=>{
+      if(activeChangeField) return; // something's already pinned open
+      const change = changeFor(kind, port, field);
+      if(change){ showChangeTooltip(el, change); }
+    };
+    const unpreview = ()=>{
+      if(!activeChangeField){ hideChangeTooltip(); }
+    };
+    const pin = ()=>{
+      if(activeChangeField && activeChangeField.el !== el){ closeActiveChangeField(); }
+      const change = changeFor(kind, port, field);
+      if(!change) return;
+      activeChangeField = { el, kind, port, field, cellEl: cell };
+      showChangeTooltip(el, change);
+    };
+
+    cell.addEventListener('mouseenter', preview);
+    cell.addEventListener('mouseleave', unpreview);
+    cell.addEventListener('click', pin);
+    cell.addEventListener('touchstart', pin, { passive: true });
+    el.addEventListener('focus', pin);
+    el.addEventListener('blur', ()=>{
+      if(activeChangeField && activeChangeField.el === el){ closeActiveChangeField(); }
+    });
+  }
+
   function listLabel(kind){
 
 
@@ -1564,6 +1796,8 @@
           val.textContent = (live && live.length) ? live : ('\u2014 unassigned on ' + fieldSideLabel(kind, port, field) + ' \u2014');
           wrap.appendChild(val);
           wrap.title = 'Following ' + listLabel(kind) + ' \u2014 ' + refLabelForPort(kind, port) + ' (' + fieldDisplayName(field) + ')';
+          wrap.tabIndex = 0;
+          wireChangeIndicator(wrap, kind, port, field);
           return wrap;
         }
 
@@ -1584,16 +1818,19 @@
           input.value = listFieldForPort(kind, port, field) || '';
           input.placeholder = '\u2014 unassigned on ' + fieldSideLabel(kind, port, field) + ' \u2014';
           autoSizeInput(input);
+          wireChangeIndicator(input, kind, port, field);
           input.addEventListener('input', ()=> autoSizeInput(input));
           input.addEventListener('change', async ()=>{
             const targetList = listByKind(kind);
             if(!targetList){ return; }
             const targetRow = targetList.rows.find(r => Number(r.port) === Number(port));
             if(!targetRow){ return; }
+            const oldValue = listFieldForPort(kind, port, field) || '';
             if(field === 'output'){ targetRow.output = input.value; }
             else if(field === 'label'){ targetRow.label = input.value; }
             else if(field === 'label2'){ targetRow.label2 = input.value; }
             else { targetRow.input = input.value; }
+            recordFieldChange(kind, port, field, oldValue, input.value);
             await saveCurrentShow();
             renderTable();
           });
@@ -1612,16 +1849,22 @@
             td.appendChild(buildLinkedCell(kind, row.linkPort, field));
           } else if(row.vlanPort){
             const select = makeVlanDropdown(row.input);
+            wireChangeIndicator(select, list.kind, row.port, 'input');
             select.addEventListener('change', async ()=>{
+              const oldValue = row.input;
               row.input = select.value;
+              recordFieldChange(list.kind, row.port, 'input', oldValue, row.input);
               await saveCurrentShow();
               if(list.kind === 'router'){ renderTable(); }
             });
             td.appendChild(select);
           } else if(row.netSwitchPort){
             const select = makeNetSwitchDropdown(row.input);
+            wireChangeIndicator(select, list.kind, row.port, 'input');
             select.addEventListener('change', async ()=>{
+              const oldValue = row.input;
               row.input = select.value;
+              recordFieldChange(list.kind, row.port, 'input', oldValue, row.input);
               await saveCurrentShow();
               if(list.kind === 'router'){ renderTable(); }
             });
@@ -1633,17 +1876,23 @@
             textInput.value = row.input || '';
             textInput.placeholder = '\u2014';
             autoSizeInput(textInput);
+            wireChangeIndicator(textInput, list.kind, row.port, 'input');
             textInput.addEventListener('input', ()=> autoSizeInput(textInput));
             textInput.addEventListener('change', async ()=>{
+              const oldValue = row.input;
               row.input = textInput.value;
+              recordFieldChange(list.kind, row.port, 'input', oldValue, row.input);
               await saveCurrentShow();
               if(list.kind === 'router'){ renderTable(); }
             });
             td.appendChild(textInput);
           } else {
             const select = makeDropdown(row.input);
+            wireChangeIndicator(select, list.kind, row.port, 'input');
             select.addEventListener('change', async ()=>{
+              const oldValue = row.input;
               row.input = select.value;
+              recordFieldChange(list.kind, row.port, 'input', oldValue, row.input);
               await saveCurrentShow();
               if(list.kind === 'router'){ renderTable(); }
             });
@@ -1675,9 +1924,12 @@
             input.value = row.label || '';
             input.placeholder = bidiSource ? ('\u2014 unassigned on ' + reverseSideLabel(bidiSource.list.kind, bidiSource.row.port, bidiSource.prefix) + ' \u2014') : '\u2014';
             autoSizeInput(input);
+            wireChangeIndicator(input, list.kind, row.port, 'label');
             input.addEventListener('input', ()=> autoSizeInput(input));
             input.addEventListener('change', async ()=>{
+              const oldValue = row.label;
               row.label = input.value;
+              recordFieldChange(list.kind, row.port, 'label', oldValue, row.label);
               await saveCurrentShow();
               if(list.kind === 'router'){ renderTable(); }
             });
@@ -1714,9 +1966,12 @@
             input.value = row.output || '';
             input.placeholder = '\u2014';
             autoSizeInput(input);
+            wireChangeIndicator(input, list.kind, row.port, 'output');
             input.addEventListener('input', ()=> autoSizeInput(input));
             input.addEventListener('change', async ()=>{
+              const oldValue = row.output;
               row.output = input.value;
+              recordFieldChange(list.kind, row.port, 'output', oldValue, row.output);
               await saveCurrentShow();
               if(list.kind === 'router'){ renderTable(); }
             });
@@ -1735,8 +1990,11 @@
             tdSrc.appendChild(row.sourceBidi ? buildBidiLinkedCell(kind, row.sourceLinkPort, field) : buildLinkedCell(kind, row.sourceLinkPort, field));
           } else {
             const srcSelect = makeRouterSourceRefDropdown(row.sourceRefPort);
+            wireChangeIndicator(srcSelect, list.kind, row.port, 'sourceRefPort');
             srcSelect.addEventListener('change', async ()=>{
+              const oldValue = row.sourceRefPort;
               row.sourceRefPort = srcSelect.value ? Number(srcSelect.value) : null;
+              recordFieldChange(list.kind, row.port, 'sourceRefPort', oldValue, row.sourceRefPort);
               await saveCurrentShow();
               if(list.kind === 'router'){ renderTable(); }
             });
@@ -1752,9 +2010,12 @@
           destInput.value = row.destination || '';
           destInput.placeholder = '\u2014';
           autoSizeInput(destInput);
+          wireChangeIndicator(destInput, list.kind, row.port, 'destination');
           destInput.addEventListener('input', ()=> autoSizeInput(destInput));
           destInput.addEventListener('change', async ()=>{
+            const oldValue = row.destination;
             row.destination = destInput.value;
+            recordFieldChange(list.kind, row.port, 'destination', oldValue, row.destination);
             await saveCurrentShow();
           });
           tdDest.appendChild(destInput);
@@ -1776,9 +2037,12 @@
             input.value = row.label2 || '';
             input.placeholder = bidiSource ? ('\u2014 unassigned on ' + reverseSideLabel(bidiSource.list.kind, bidiSource.row.port, bidiSource.prefix) + ' \u2014') : '\u2014';
             autoSizeInput(input);
+            wireChangeIndicator(input, list.kind, row.port, 'label2');
             input.addEventListener('input', ()=> autoSizeInput(input));
             input.addEventListener('change', async ()=>{
+              const oldValue = row.label2;
               row.label2 = input.value;
+              recordFieldChange(list.kind, row.port, 'label2', oldValue, row.label2);
               await saveCurrentShow();
               if(list.kind === 'router'){ renderTable(); }
             });
@@ -1814,9 +2078,12 @@
             destInput.value = row.destination || '';
             destInput.placeholder = '\u2014';
             autoSizeInput(destInput);
+            wireChangeIndicator(destInput, list.kind, row.port, 'destination');
             destInput.addEventListener('input', ()=> autoSizeInput(destInput));
             destInput.addEventListener('change', async ()=>{
+              const oldValue = row.destination;
               row.destination = destInput.value;
+              recordFieldChange(list.kind, row.port, 'destination', oldValue, row.destination);
               await saveCurrentShow();
             });
             td.appendChild(destInput);
@@ -2112,6 +2379,7 @@
 
     state.userRole = access.role;
     state.assignedShowId = access.assigned_show_id || null;
+    state.seen = access.seen || {};
     state.readOnly = (access.role === 'viewer');
 
     if(access.role !== 'admin' && !state.assignedShowId){
