@@ -2073,6 +2073,10 @@
             const field = row.sourceLinkField || 'input';
             tdSrc.appendChild(row.sourceBidi ? buildBidiLinkedCell(kind, row.sourceLinkPort, field) : buildLinkedCell(kind, row.sourceLinkPort, field));
           } else {
+            // Is some other row's two-way link pointing AT this Source? (e.g. a
+            // Switcher input that follows this router port.) If so, draw it as a
+            // linked cell like the Label columns do, so it's visible from this side.
+            const bidiSource = findBidiSourceInto(list.kind, row.port, 'source');
             const srcSelect = makeRouterSourceRefDropdown(row.sourceRefPort);
             wireChangeIndicator(srcSelect, list.kind, row.port, 'sourceRefPort');
             srcSelect.addEventListener('change', async ()=>{
@@ -2083,7 +2087,20 @@
               await saveCurrentShow();
               if(list.kind === 'router'){ renderTable(); }
             });
-            tdSrc.appendChild(srcSelect);
+            if(bidiSource){
+              const wrap = document.createElement('div');
+              wrap.className = 'cell-linked';
+              const chain = document.createElement('span');
+              chain.className = 'chain';
+              chain.textContent = '\u26d3';
+              wrap.appendChild(chain);
+              srcSelect.style.background = 'transparent';
+              wrap.appendChild(srcSelect);
+              wrap.title = 'Linked both ways with ' + reverseSideLabel(bidiSource.list.kind, bidiSource.row.port, bidiSource.prefix);
+              tdSrc.appendChild(wrap);
+            } else {
+              tdSrc.appendChild(srcSelect);
+            }
           }
           tr.appendChild(tdSrc);
 
