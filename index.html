@@ -866,16 +866,26 @@
     const newShowId = newAccess.assigned_show_id || null;
     const showChanged = !!newShowId && (!state.show || state.show.id !== newShowId);
     const roleChanged = newAccess.role !== state.userRole;
-    const seenChanged = JSON.stringify(newAccess.seen || {}) !== JSON.stringify(state.seen || {});
+    const mergedSeen = mergeSeen(state.seen, newAccess.seen);
+    const seenChanged = JSON.stringify(mergedSeen) !== JSON.stringify(state.seen || {});
 
     state.userRole = newAccess.role;
     state.assignedShowId = newShowId;
     state.readOnly = (newAccess.role === 'viewer');
-    state.seen = newAccess.seen || {};
+    state.seen = mergedSeen;
 
     if(state.userRole !== 'admin' && !state.assignedShowId){
       unsubscribeFromShow();
       renderNoShowAssignedScreen(state.userEmail);
+      return;
+    }
+
+    // Same role, same show: nothing about the screen needs rebuilding except the
+    // changed-cell highlights, and only if another device marked something seen.
+    // (This is what used to redraw the table -- and wipe a field mid-typing --
+    // every time the app's own "seen" save echoed back.)
+    if(!showChanged && !roleChanged){
+      if(seenChanged){ requestTableRefresh(); }
       return;
     }
 
@@ -909,36 +919,75 @@
     if(!state.show) return;
     // Ignore the echo of our own save landing back through the subscription.
     if(state._justSavedAt && Date.now() - state._justSavedAt < 1500) return;
+    await applyRemoteShowUpdate();
+  }
 
-    const active = document.activeElement;
-    const isTyping = active && els.ioTableWrap.contains(active) && (active.tagName === 'INPUT' || active.tagName === 'SELECT');
+  // ---- Redraw safety -------------------------------------------------------
+  // The table is rebuilt from scratch on every render, which destroys whatever
+  // field has focus (the cursor, and anything typed but not yet committed).
+  // So background redraws -- a refresh after a save, an update from another
+  // device or person -- never run while a table field is focused. They wait until
+  // focus has left the table entirely. Clicking from one cell to the next never
+  // counts as leaving it, so moving between fields stays smooth.
+  const _idleJobs = new Map();   // key -> function; a repeated key replaces the older job
 
-    if(!isTyping){
-      await applyRemoteShowUpdate();
-      return;
-    }
+  function tableFieldFocused(){
+    const a = document.activeElement;
+    return !!(a && els.ioTableWrap.contains(a) && (a.tagName === 'INPUT' || a.tagName === 'SELECT' || a.tagName === 'TEXTAREA'));
+  }
 
-    // Something's actively focused -- wait until they blur it (click away,
-    // tab out, hit enter) before rewriting the screen, so an incoming
-    // update can't interrupt a keystroke. Only one pending listener at a time.
-    if(state._pendingRemoteRefresh) return;
-    state._pendingRemoteRefresh = true;
-    const onBlur = async ()=>{
-      active.removeEventListener('blur', onBlur);
-      state._pendingRemoteRefresh = false;
-      await applyRemoteShowUpdate();
-    };
-    active.addEventListener('blur', onBlur, { once: true });
+  function whenTableIdle(key, fn){
+    if(!tableFieldFocused()){ _idleJobs.delete(key); fn(); return; }
+    _idleJobs.set(key, fn);
+  }
+
+  function runIdleJobs(){
+    if(tableFieldFocused() || !_idleJobs.size) return;
+    const jobs = Array.from(_idleJobs.values());
+    _idleJobs.clear();
+    jobs.forEach(f => { try{ f(); }catch(e){ console.error(e); } });
+  }
+
+  function requestTableRefresh(){
+    whenTableIdle('table', () => renderTable());
+  }
+
+  function stableStringify(v){
+    if(v === null || typeof v !== 'object') return JSON.stringify(v);
+    if(Array.isArray(v)) return '[' + v.map(stableStringify).join(',') + ']';
+    return '{' + Object.keys(v).sort().map(k => JSON.stringify(k) + ':' + stableStringify(v[k])).join(',') + '}';
+  }
+  function showFingerprint(s){
+    return stableStringify({ name: s.name || '', sourceNames: s.sourceNames || [], lists: s.lists || [], fieldChanges: s.fieldChanges || {} });
+  }
+
+  // Merge the "seen" maps from two devices, keeping the newer stamp per key.
+  function mergeSeen(local, remote){
+    const out = Object.assign({}, local || {});
+    Object.keys(remote || {}).forEach(k => {
+      if(!(k in out) || Number(remote[k]) > Number(out[k])) out[k] = remote[k];
+    });
+    return out;
   }
 
   async function applyRemoteShowUpdate(){
-    if(!state.show) return;
-    const fresh = await dbGetShowById(state.show.id);
-    if(!fresh) return;
-    state.show = fresh;
-    renderAll();
-    if(state.userRole === 'admin'){ renderSaveBar(); }
-    flashStatus('Updated');
+    whenTableIdle('remote', async ()=>{
+      if(!state.show) return;
+      // Make sure our own latest edits have reached the database first, so the
+      // copy we pull back can't be one that is missing them.
+      await flushPendingSave();
+      const fresh = await dbGetShowById(state.show.id);
+      if(!fresh) return;
+      // If the person started typing, or edited again, while we were fetching,
+      // drop this copy and try again once they are done.
+      if(tableFieldFocused() || _saveDebounceTimer || _saveInFlight){ applyRemoteShowUpdate(); return; }
+      // Nothing actually different (e.g. the echo of our own save): no redraw.
+      if(showFingerprint(fresh) === showFingerprint(state.show)) return;
+      state.show = fresh;
+      renderAll();
+      if(state.userRole === 'admin'){ renderSaveBar(); }
+      flashStatus('Updated');
+    });
   }
 
   // Debounced so a burst of edits (e.g. tabbing through several fields
@@ -946,6 +995,7 @@
   // change, instead of firing one full upload per field.
   let _saveDebounceTimer = null;
   let _saveDebouncePending = [];
+  let _saveInFlight = null;
 
   async function saveCurrentShow(){
     if(!state.show) return;
@@ -955,7 +1005,10 @@
       _saveDebounceTimer = setTimeout(async ()=>{
         const resolvers = _saveDebouncePending;
         _saveDebouncePending = [];
-        const ok = await dbUpsertShow(state.show);
+        _saveDebounceTimer = null;
+        _saveInFlight = dbUpsertShow(state.show);
+        const ok = await _saveInFlight;
+        _saveInFlight = null;
         if(ok) flashStatus('Saved');
         resolvers.forEach(r => r(ok));
       }, 400);
@@ -966,6 +1019,7 @@
   // page unloads or the person switches/deletes a show, so a save
   // mid-debounce doesn't get silently dropped.
   async function flushPendingSave(){
+    if(_saveInFlight){ try{ await _saveInFlight; }catch(e){} }
     if(!_saveDebounceTimer) return;
     clearTimeout(_saveDebounceTimer);
     _saveDebounceTimer = null;
@@ -1923,7 +1977,7 @@
             const newDisplay = routerSourceRefDisplay(row.sourceRefPort);
             recordFieldChange(kind, port, 'sourceRefPort', oldDisplay, newDisplay);
             await saveCurrentShow();
-            renderTable();
+            requestTableRefresh();
           });
           wrap.appendChild(select);
           wrap.title = 'Linked both ways with ' + listLabel(kind) + ' \u2014 ' + refLabelForPort(kind, port) + ' (' + fieldDisplayName('source') + ')';
@@ -1959,7 +2013,7 @@
             else { targetRow.input = input.value; }
             recordFieldChange(kind, port, field, oldValue, input.value);
             await saveCurrentShow();
-            renderTable();
+            requestTableRefresh();
           });
           wrap.appendChild(input);
           wrap.title = 'Linked both ways with ' + listLabel(kind) + ' \u2014 ' + refLabelForPort(kind, port) + ' (' + fieldDisplayName(field) + ')';
@@ -1982,7 +2036,7 @@
               row.input = select.value;
               recordFieldChange(list.kind, row.port, 'input', oldValue, row.input);
               await saveCurrentShow();
-              if(list.kind === 'router'){ renderTable(); }
+              if(list.kind === 'router'){ requestTableRefresh(); }
             });
             td.appendChild(select);
           } else if(row.netSwitchPort){
@@ -1993,7 +2047,7 @@
               row.input = select.value;
               recordFieldChange(list.kind, row.port, 'input', oldValue, row.input);
               await saveCurrentShow();
-              if(list.kind === 'router'){ renderTable(); }
+              if(list.kind === 'router'){ requestTableRefresh(); }
             });
             td.appendChild(select);
           } else if(list.kind === 'stage-rack-a' || list.kind === 'stage-rack-b' || list.kind === 'io-panel' || list.kind === 'patch-panel' || list.kind === 'router' || list.kind === 'switcher'){
@@ -2010,7 +2064,7 @@
               row.input = textInput.value;
               recordFieldChange(list.kind, row.port, 'input', oldValue, row.input);
               await saveCurrentShow();
-              if(list.kind === 'router'){ renderTable(); }
+              if(list.kind === 'router'){ requestTableRefresh(); }
             });
             td.appendChild(textInput);
           } else {
@@ -2021,7 +2075,7 @@
               row.input = select.value;
               recordFieldChange(list.kind, row.port, 'input', oldValue, row.input);
               await saveCurrentShow();
-              if(list.kind === 'router'){ renderTable(); }
+              if(list.kind === 'router'){ requestTableRefresh(); }
             });
             td.appendChild(select);
           }
@@ -2058,7 +2112,7 @@
               row.label = input.value;
               recordFieldChange(list.kind, row.port, 'label', oldValue, row.label);
               await saveCurrentShow();
-              if(list.kind === 'router'){ renderTable(); }
+              if(list.kind === 'router'){ requestTableRefresh(); }
             });
             if(bidiSource){
               const wrap = document.createElement('div');
@@ -2100,7 +2154,7 @@
               row.output = input.value;
               recordFieldChange(list.kind, row.port, 'output', oldValue, row.output);
               await saveCurrentShow();
-              if(list.kind === 'router'){ renderTable(); }
+              if(list.kind === 'router'){ requestTableRefresh(); }
             });
             td.appendChild(input);
           }
@@ -2128,7 +2182,7 @@
               const newDisplay = routerSourceRefDisplay(row.sourceRefPort);
               recordFieldChange(list.kind, row.port, 'sourceRefPort', oldDisplay, newDisplay);
               await saveCurrentShow();
-              if(list.kind === 'router'){ renderTable(); }
+              if(list.kind === 'router'){ requestTableRefresh(); }
             });
             if(bidiSource){
               const wrap = document.createElement('div');
@@ -2189,7 +2243,7 @@
               row.label2 = input.value;
               recordFieldChange(list.kind, row.port, 'label2', oldValue, row.label2);
               await saveCurrentShow();
-              if(list.kind === 'router'){ renderTable(); }
+              if(list.kind === 'router'){ requestTableRefresh(); }
             });
             if(bidiSource){
               const wrap = document.createElement('div');
@@ -2420,6 +2474,7 @@
   }
 
   // --- Events ---
+  els.ioTableWrap.addEventListener('focusout', ()=>{ setTimeout(runIdleJobs, 0); });
   let searchDebounce;
   els.ioSearch.addEventListener('input', ()=>{
     clearTimeout(searchDebounce);
@@ -2491,6 +2546,7 @@
     const access = await dbGetMyAccess(state.userEmail);
     await applyAccessChange(access);
     subscribeToMyAccess(state.userEmail);
+    if(state.userRole === 'admin'){ state.savesList = await dbListSaves(); renderSaveBar(); }
     if(state.show && state.show.id){
       await applyRemoteShowUpdate();
       subscribeToShow(state.show.id);
