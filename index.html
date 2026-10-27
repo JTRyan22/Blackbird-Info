@@ -382,6 +382,20 @@
   }
   .cell-linked .chain{ font-size:12px; opacity:.8; }
 
+  .link-tip{
+    position:fixed; z-index:600;
+    background:var(--panel);
+    border:1px solid var(--link);
+    border-radius:8px;
+    padding:10px 14px;
+    font-family:var(--sans);
+    font-size:16px;
+    line-height:1.4;
+    color:var(--text);
+    max-width:min(420px, calc(100vw - 16px));
+    box-shadow:0 8px 24px rgba(0,0,0,.5);
+    pointer-events:none;
+  }
   .row-del{
     background:none;border:none;color:var(--dim);cursor:pointer;
     font-size:15px; padding:6px; opacity:.5;
@@ -1461,6 +1475,37 @@
     return FIELD_DISPLAY_NAMES[field] || 'Input';
   }
 
+  // --- Linked-cell hover note ---
+  // Drawn by the app rather than the browser's built-in title tooltip, because that
+  // one can't be made any larger and some people struggle to read it. It sits just
+  // below the cell (or above, near the bottom of the screen) so it never covers the
+  // cell being pointed at.
+  let linkTipEl = null, linkTipFor = null;
+  function setLinkTip(el, text){ el.setAttribute('data-tip', text); }
+  function hideLinkTip(){
+    if(linkTipEl){ linkTipEl.remove(); linkTipEl = null; }
+    linkTipFor = null;
+  }
+  function showLinkTip(el){
+    if(el === linkTipFor) return;
+    hideLinkTip();
+    const anchor = el.closest('td') || el;
+    const tip = document.createElement('div');
+    tip.className = 'link-tip';
+    tip.textContent = el.getAttribute('data-tip');
+    document.body.appendChild(tip);
+    const a = anchor.getBoundingClientRect();
+    const t = tip.getBoundingClientRect();
+    const gap = 6, margin = 8;
+    let top = a.bottom + gap;
+    if(top + t.height > window.innerHeight - margin){ top = Math.max(margin, a.top - gap - t.height); }
+    const left = Math.min(Math.max(margin, a.left), Math.max(margin, window.innerWidth - t.width - margin));
+    tip.style.top = top + 'px';
+    tip.style.left = left + 'px';
+    linkTipEl = tip;
+    linkTipFor = el;
+  }
+
   function listLabel(kind){
 
 
@@ -1636,6 +1681,7 @@
   }
 
   function renderTable(){
+    hideLinkTip();
     const list = activeList();
     els.ioTableWrap.innerHTML = '';
 
@@ -1767,7 +1813,7 @@
           const val = document.createElement('span');
           val.textContent = (live && live.length) ? live : ('\u2014 unassigned on ' + fieldSideLabel(kind, port, field) + ' \u2014');
           wrap.appendChild(val);
-          wrap.title = 'Following ' + listLabel(kind) + ' \u2014 ' + refLabelForPort(kind, port) + ' (' + fieldDisplayName(field) + ')';
+          setLinkTip(wrap, 'Linked with ' + listLabel(kind) + ' \u2014 ' + refLabelForPort(kind, port) + ' (' + fieldDisplayName(field) + ')');
           return wrap;
         }
 
@@ -1805,7 +1851,7 @@
             requestTableRefresh();
           });
           wrap.appendChild(select);
-          wrap.title = 'Linked both ways with ' + listLabel(kind) + ' \u2014 ' + refLabelForPort(kind, port) + ' (' + fieldDisplayName('source') + ')';
+          setLinkTip(wrap, 'Linked with ' + listLabel(kind) + ' \u2014 ' + refLabelForPort(kind, port) + ' (' + fieldDisplayName('source') + ')');
           return wrap;
         }
 
@@ -1838,7 +1884,7 @@
             requestTableRefresh();
           });
           wrap.appendChild(input);
-          wrap.title = 'Linked both ways with ' + listLabel(kind) + ' \u2014 ' + refLabelForPort(kind, port) + ' (' + fieldDisplayName(field) + ')';
+          setLinkTip(wrap, 'Linked with ' + listLabel(kind) + ' \u2014 ' + refLabelForPort(kind, port) + ' (' + fieldDisplayName(field) + ')');
           return wrap;
         }
 
@@ -1930,7 +1976,7 @@
               wrap.appendChild(chain);
               input.style.background = 'transparent';
               wrap.appendChild(input);
-              wrap.title = 'Linked both ways with ' + listLabel(bidiSource.list.kind) + ' \u2014 ' + refLabelForPort(bidiSource.list.kind, bidiSource.row.port);
+              setLinkTip(wrap, 'Linked with ' + listLabel(bidiSource.list.kind) + ' \u2014 ' + refLabelForPort(bidiSource.list.kind, bidiSource.row.port));
               td.appendChild(wrap);
             } else {
               td.appendChild(input);
@@ -1993,7 +2039,7 @@
               wrap.appendChild(chain);
               srcSelect.style.background = 'transparent';
               wrap.appendChild(srcSelect);
-              wrap.title = 'Linked both ways with ' + reverseSideLabel(bidiSource.list.kind, bidiSource.row.port, bidiSource.prefix);
+              setLinkTip(wrap, 'Linked with ' + reverseSideLabel(bidiSource.list.kind, bidiSource.row.port, bidiSource.prefix));
               tdSrc.appendChild(wrap);
             } else {
               tdSrc.appendChild(srcSelect);
@@ -2048,7 +2094,7 @@
               wrap.appendChild(chain);
               input.style.background = 'transparent';
               wrap.appendChild(input);
-              wrap.title = 'Linked both ways with ' + listLabel(bidiSource.list.kind) + ' \u2014 ' + refLabelForPort(bidiSource.list.kind, bidiSource.row.port);
+              setLinkTip(wrap, 'Linked with ' + listLabel(bidiSource.list.kind) + ' \u2014 ' + refLabelForPort(bidiSource.list.kind, bidiSource.row.port));
               td.appendChild(wrap);
             } else {
               td.appendChild(input);
@@ -2287,6 +2333,12 @@
 
   // --- Events ---
   els.ioTableWrap.addEventListener('focusout', ()=>{ setTimeout(runIdleJobs, 0); });
+  els.ioTableWrap.addEventListener('mouseover', (e)=>{
+    const el = e.target && e.target.closest ? e.target.closest('[data-tip]') : null;
+    if(el){ showLinkTip(el); } else { hideLinkTip(); }
+  });
+  els.ioTableWrap.addEventListener('mouseleave', hideLinkTip);
+  document.addEventListener('scroll', hideLinkTip, true);
   let searchDebounce;
   els.ioSearch.addEventListener('input', ()=>{
     clearTimeout(searchDebounce);
