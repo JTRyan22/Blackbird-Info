@@ -1480,11 +1480,26 @@
   // one can't be made any larger and some people struggle to read it. It sits just
   // below the cell (or above, near the bottom of the screen) so it never covers the
   // cell being pointed at.
-  let linkTipEl = null, linkTipFor = null;
+  // It only appears after the pointer has rested on the cell for a moment, so it
+  // doesn't flash up while the mouse is just passing over.
+  const LINK_TIP_DELAY_MS = 2000;
+  let linkTipEl = null, linkTipFor = null, linkTipTimer = null, linkTipPending = null;
   function setLinkTip(el, text){ el.setAttribute('data-tip', text); }
   function hideLinkTip(){
+    if(linkTipTimer){ clearTimeout(linkTipTimer); linkTipTimer = null; }
+    linkTipPending = null;
     if(linkTipEl){ linkTipEl.remove(); linkTipEl = null; }
     linkTipFor = null;
+  }
+  function scheduleLinkTip(el){
+    if(el === linkTipFor || el === linkTipPending) return;   // already showing / already counting down
+    hideLinkTip();
+    linkTipPending = el;
+    linkTipTimer = setTimeout(()=>{
+      linkTipTimer = null;
+      linkTipPending = null;
+      if(el.isConnected){ showLinkTip(el); }
+    }, LINK_TIP_DELAY_MS);
   }
   function showLinkTip(el){
     if(el === linkTipFor) return;
@@ -2335,7 +2350,7 @@
   els.ioTableWrap.addEventListener('focusout', ()=>{ setTimeout(runIdleJobs, 0); });
   els.ioTableWrap.addEventListener('mouseover', (e)=>{
     const el = e.target && e.target.closest ? e.target.closest('[data-tip]') : null;
-    if(el){ showLinkTip(el); } else { hideLinkTip(); }
+    if(el){ scheduleLinkTip(el); } else { hideLinkTip(); }
   });
   els.ioTableWrap.addEventListener('mouseleave', hideLinkTip);
   document.addEventListener('scroll', hideLinkTip, true);
