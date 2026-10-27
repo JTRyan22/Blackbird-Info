@@ -275,7 +275,27 @@
 
   .io-save-btn-danger{ color:var(--danger); }
   .io-save-btn-danger:hover{ border-color:var(--danger); color:var(--danger); }
-  .io-save-btn-locked{ color:var(--amber); border-color:var(--amber-dim); }
+  /* Lock switch: off = unlocked, on (amber) = locked */
+  .io-lock-toggle{
+    position:relative; display:inline-flex; align-items:center; gap:8px;
+    padding:0 6px; cursor:pointer; user-select:none;
+    font-size:13px; color:var(--dim);
+  }
+  .io-lock-toggle input{ position:absolute; opacity:0; width:0; height:0; pointer-events:none; }
+  .io-switch{
+    position:relative; flex:none; width:38px; height:21px; border-radius:21px;
+    background:var(--panel-2); border:1px solid var(--line);
+    transition:background .15s, border-color .15s;
+  }
+  .io-switch::after{
+    content:''; position:absolute; top:2px; left:2px; width:15px; height:15px; border-radius:50%;
+    background:var(--dim); transition:transform .15s, background .15s;
+  }
+  .io-lock-toggle input:checked + .io-switch{ background:#4a3410; border-color:var(--amber-dim); }
+  .io-lock-toggle input:checked + .io-switch::after{ transform:translateX(17px); background:var(--amber); }
+  .io-lock-toggle input:checked ~ .io-lock-label{ color:var(--amber); }
+  .io-lock-toggle input:focus-visible + .io-switch{ outline:2px solid var(--amber); outline-offset:2px; }
+  .io-lock-toggle.is-disabled{ opacity:.35; cursor:not-allowed; }
   .io-save-btn:disabled{ opacity:.35; cursor:not-allowed; }
   .io-save-btn:disabled:hover{ border-color:var(--line); color:var(--dim); }
 
@@ -468,8 +488,12 @@
   <div class="io-savebar">
     <select class="io-save-select" id="ioSaveSelect"></select>
     <button class="io-save-btn" id="ioSaveBtn">Add Show</button>
-    <button class="io-save-btn" id="ioLockBtn">Lock Show</button>
     <button class="io-save-btn io-save-btn-danger" id="ioDeleteBtn">Delete Save</button>
+    <label class="io-lock-toggle" id="ioLockToggle">
+      <input type="checkbox" id="ioLockInput">
+      <span class="io-switch"></span>
+      <span class="io-lock-label" id="ioLockLabel">Unlocked</span>
+    </label>
   </div>
 
   <div class="io-subtabs" id="ioSubTabs"></div>
@@ -517,7 +541,9 @@
     ioSaveBtn: document.getElementById('ioSaveBtn'),
 
     ioDeleteBtn: document.getElementById('ioDeleteBtn'),
-    ioLockBtn: document.getElementById('ioLockBtn'),
+    ioLockToggle: document.getElementById('ioLockToggle'),
+    ioLockInput: document.getElementById('ioLockInput'),
+    ioLockLabel: document.getElementById('ioLockLabel'),
     ioApp: document.getElementById('io-app'),
     ioAuthScreen: document.getElementById('ioAuthScreen'),
     ioAuthContent: document.getElementById('ioAuthContent'),
@@ -2263,12 +2289,13 @@
     els.ioDeleteBtn.disabled = isDefaultShow || isLocked || state.savesList.length <= 1;
     els.ioDeleteBtn.title = isDefaultShow ? 'The default show can\u2019t be deleted' : (isLocked ? 'Unlock this show before deleting it' : '');
 
-    els.ioLockBtn.textContent = isLocked ? 'Unlock Show' : 'Lock Show';
-    els.ioLockBtn.classList.toggle('io-save-btn-locked', isLocked);
-    els.ioLockBtn.disabled = !state.lockSupported;
-    els.ioLockBtn.title = !state.lockSupported
+    els.ioLockInput.checked = isLocked;
+    els.ioLockInput.disabled = !state.lockSupported;
+    els.ioLockLabel.textContent = isLocked ? 'Locked' : 'Unlocked';
+    els.ioLockToggle.classList.toggle('is-disabled', !state.lockSupported);
+    els.ioLockToggle.title = !state.lockSupported
       ? 'Run lock-show.sql in Supabase to turn locking on'
-      : (isLocked ? 'Unlock so this show can be edited again' : 'Lock so nobody can change this show');
+      : (isLocked ? 'Locked \u2014 switch off to let this show be edited again' : 'Switch on to lock this show so nobody can change it');
   }
 
   function renderUserBar(){
@@ -2430,21 +2457,23 @@
     }
   });
 
-  els.ioLockBtn.addEventListener('click', async ()=>{
-    if(!state.show || !state.lockSupported) return;
-    const willLock = !state.show.locked;
-    if(willLock){
-      await flushPendingSave();   // anything still waiting to save goes in before it locks
-    } else if(!confirm('Unlock "' + state.show.name + '"? It can then be changed again by anyone who can edit it.')){
+  els.ioLockInput.addEventListener('change', async ()=>{
+    if(!state.show || !state.lockSupported){ renderSaveBar(); return; }
+    const willLock = els.ioLockInput.checked;
+    if(!willLock && !confirm('Unlock "' + state.show.name + '"? It can then be changed again by anyone who can edit it.')){
+      els.ioLockInput.checked = true;   // they backed out: leave it locked
       return;
     }
+    els.ioLockInput.disabled = true;    // no double-flips while the change is in flight
+    if(willLock){ await flushPendingSave(); }   // anything still waiting to save goes in first
     const ok = await dbSetLocked(state.show.id, willLock);
-    if(!ok) return;
-    state.show.locked = willLock;
-    renderBrandShow();
-    renderSaveBar();
-    renderTable();
-    flashStatus(willLock ? 'Locked' : 'Unlocked');
+    if(ok){
+      state.show.locked = willLock;
+      renderBrandShow();
+      renderTable();
+      flashStatus(willLock ? 'Locked' : 'Unlocked');
+    }
+    renderSaveBar();                    // also puts the switch back to the true state
   });
 
   els.ioDeleteBtn.addEventListener('click', async ()=>{
