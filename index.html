@@ -275,6 +275,7 @@
 
   .io-save-btn-danger{ color:var(--danger); }
   .io-save-btn-danger:hover{ border-color:var(--danger); color:var(--danger); }
+  .io-save-btn-locked{ color:var(--amber); border-color:var(--amber-dim); }
   .io-save-btn:disabled{ opacity:.35; cursor:not-allowed; }
   .io-save-btn:disabled:hover{ border-color:var(--line); color:var(--dim); }
 
@@ -467,6 +468,7 @@
   <div class="io-savebar">
     <select class="io-save-select" id="ioSaveSelect"></select>
     <button class="io-save-btn" id="ioSaveBtn">Add Show</button>
+    <button class="io-save-btn" id="ioLockBtn">Lock Show</button>
     <button class="io-save-btn io-save-btn-danger" id="ioDeleteBtn">Delete Save</button>
   </div>
 
@@ -515,6 +517,7 @@
     ioSaveBtn: document.getElementById('ioSaveBtn'),
 
     ioDeleteBtn: document.getElementById('ioDeleteBtn'),
+    ioLockBtn: document.getElementById('ioLockBtn'),
     ioApp: document.getElementById('io-app'),
     ioAuthScreen: document.getElementById('ioAuthScreen'),
     ioAuthContent: document.getElementById('ioAuthContent'),
@@ -539,6 +542,7 @@
     userEmail: null,
     userRole: null,   // 'admin' | 'editor' | 'viewer' | null (no access)
     readOnly: false,
+    lockSupported: true,   // false until the is_locked column exists (lock-show.sql)
     assignedShowId: null,
     realtimeChannel: null,
     accessChannel: null,
@@ -617,17 +621,33 @@
     return data || [];
   }
   async function dbGetShowById(id){
-    const { data, error } = await sb.from('shows').select('id,name,data').eq('id', id).maybeSingle();
+    let res = await sb.from('shows').select('id,name,data,is_locked').eq('id', id).maybeSingle();
+    if(res.error && /is_locked/.test(res.error.message || '')){
+      // The lock column hasn't been added yet (lock-show.sql not run): carry on
+      // without locking rather than failing to load anything.
+      state.lockSupported = false;
+      res = await sb.from('shows').select('id,name,data').eq('id', id).maybeSingle();
+    }
+    const { data, error } = res;
     if(error){ console.error(error); showDbError(error); return null; }
     if(!data) return null;
     return {
       id: data.id,
       name: data.name,
       sourceNames: (data.data && data.data.sourceNames) || [],
-      lists: (data.data && data.data.lists) || []
+      lists: (data.data && data.data.lists) || [],
+      locked: !!data.is_locked
     };
   }
+  async function dbSetLocked(id, locked){
+    const { error } = await sb.from('shows').update({ is_locked: locked }).eq('id', id);
+    if(error){ console.error(error); showDbError(error); return false; }
+    return true;
+  }
   async function dbUpsertShow(show){
+    // A locked show is never written -- not by edits, and not by the quiet
+    // "bring this older show up to date" step that runs when one is opened.
+    if(show.locked){ return true; }
     const { error } = await sb.from('shows').upsert({
       id: show.id,
       name: show.name,
@@ -945,7 +965,7 @@
     return '{' + Object.keys(v).sort().map(k => JSON.stringify(k) + ':' + stableStringify(v[k])).join(',') + '}';
   }
   function showFingerprint(s){
-    return stableStringify({ name: s.name || '', sourceNames: s.sourceNames || [], lists: s.lists || [] });
+    return stableStringify({ name: s.name || '', locked: !!s.locked, sourceNames: s.sourceNames || [], lists: s.lists || [] });
   }
 
   async function applyRemoteShowUpdate(){
@@ -976,7 +996,7 @@
   let _saveInFlight = null;
 
   async function saveCurrentShow(){
-    if(!state.show) return;
+    if(!state.show || state.show.locked) return;
     return new Promise((resolve)=>{
       _saveDebouncePending.push(resolve);
       clearTimeout(_saveDebounceTimer);
@@ -1226,6 +1246,7 @@
     const newShow = JSON.parse(JSON.stringify(state.show));
     newShow.id = uid('show');
     newShow.name = name;
+    newShow.locked = false;   // a copy of a locked show starts out editable
     const ok = await dbUpsertShow(newShow);
     if(!ok) return;
     state.show = newShow;
@@ -1242,6 +1263,10 @@
     if(!state.show) return;
     if(state.savesList.some(s => s.id === state.show.id && s.is_default)){
       alert('The default show can\u2019t be deleted.');
+      return;
+    }
+    if(state.show.locked){
+      alert('This show is locked. Unlock it before deleting it.');
       return;
     }
     if(state.savesList.length <= 1){
@@ -1300,6 +1325,7 @@
       nameSpan.textContent = list.name.replace(/\s*\([^)]*\)\s*$/, '');
       nameSpan.addEventListener('dblclick', async (e)=>{
         e.stopPropagation();
+        if(isReadOnly()) return;
         const newName = prompt('Rename this list:', list.name);
         if(!newName) return;
         list.name = newName.trim() || list.name;
@@ -2233,8 +2259,16 @@
     // protect-default-show.sql), and neither can the last remaining save.
     const current = state.savesList.find(s => s.id === state.show.id);
     const isDefaultShow = !!(current && current.is_default);
-    els.ioDeleteBtn.disabled = isDefaultShow || state.savesList.length <= 1;
-    els.ioDeleteBtn.title = isDefaultShow ? 'The default show can\u2019t be deleted' : '';
+    const isLocked = !!state.show.locked;
+    els.ioDeleteBtn.disabled = isDefaultShow || isLocked || state.savesList.length <= 1;
+    els.ioDeleteBtn.title = isDefaultShow ? 'The default show can\u2019t be deleted' : (isLocked ? 'Unlock this show before deleting it' : '');
+
+    els.ioLockBtn.textContent = isLocked ? 'Unlock Show' : 'Lock Show';
+    els.ioLockBtn.classList.toggle('io-save-btn-locked', isLocked);
+    els.ioLockBtn.disabled = !state.lockSupported;
+    els.ioLockBtn.title = !state.lockSupported
+      ? 'Run lock-show.sql in Supabase to turn locking on'
+      : (isLocked ? 'Unlock so this show can be edited again' : 'Lock so nobody can change this show');
   }
 
   function renderUserBar(){
@@ -2261,14 +2295,19 @@
   }
 
   function renderBrandShow(){
-    els.ioBrandShow.textContent = state.show ? state.show.name : '';
+    els.ioBrandShow.textContent = state.show ? ((state.show.locked ? '\uD83D\uDD12 ' : '') + state.show.name) : '';
+    els.ioBrandShow.title = (state.show && state.show.locked) ? 'This show is locked \u2014 it can\u2019t be changed until an admin unlocks it' : '';
   }
 
   // Disables every editable field and hides row-add/delete controls when the
   // current user is a viewer. Runs after every table render, since the table
   // is fully rebuilt from scratch each time.
+  function isReadOnly(){
+    return !!state.readOnly || !!(state.show && state.show.locked);
+  }
+
   function applyReadOnly(){
-    if(!state.readOnly) return;
+    if(!isReadOnly()) return;
     els.ioTableWrap.querySelectorAll('input, select').forEach(el=>{ el.disabled = true; });
     els.ioTableWrap.querySelectorAll('.row-del').forEach(el=>{ el.style.display = 'none'; });
     const addRow = els.ioTableWrap.querySelector('.io-addrow');
@@ -2391,10 +2430,31 @@
     }
   });
 
+  els.ioLockBtn.addEventListener('click', async ()=>{
+    if(!state.show || !state.lockSupported) return;
+    const willLock = !state.show.locked;
+    if(willLock){
+      await flushPendingSave();   // anything still waiting to save goes in before it locks
+    } else if(!confirm('Unlock "' + state.show.name + '"? It can then be changed again by anyone who can edit it.')){
+      return;
+    }
+    const ok = await dbSetLocked(state.show.id, willLock);
+    if(!ok) return;
+    state.show.locked = willLock;
+    renderBrandShow();
+    renderSaveBar();
+    renderTable();
+    flashStatus(willLock ? 'Locked' : 'Unlocked');
+  });
+
   els.ioDeleteBtn.addEventListener('click', async ()=>{
     if(!state.show) return;
     if(state.savesList.some(s => s.id === state.show.id && s.is_default)){
       alert('The default show can\u2019t be deleted.');
+      return;
+    }
+    if(state.show.locked){
+      alert('This show is locked. Unlock it before deleting it.');
       return;
     }
     if(confirm('Delete "' + state.show.name + '"? This can\u2019t be undone.')){
