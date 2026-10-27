@@ -416,6 +416,9 @@
   .row-del:hover{color:var(--danger); opacity:1;}
 
   .cell-check{ padding:0 !important; text-align:center; }
+  /* A ticked box lights up its whole cell in the linked-cell blue. */
+  table.io-table td.cell-check.is-checked{ background:#152430; }
+  table.io-table tr:hover td.cell-check.is-checked{ background:#193044; }
   .cell-check .cb-wrap{ display:flex; align-items:center; justify-content:center; min-height:36px; cursor:pointer; }
   /* Tick boxes: the header's grey when empty, the linked-cell blue when ticked. */
   .cell-check input[type=checkbox]{
@@ -1990,6 +1993,7 @@
             const cb = document.createElement('input');
             cb.type = 'checkbox';
             cb.checked = !!row[f];
+            td.classList.toggle('is-checked', cb.checked);
             wrap.appendChild(cb);
             // The highlight goes on the wrapper (a tick box has no background of its
             // own), while keyboard focus -- and so the hover/clear logic -- stays on
@@ -1998,6 +2002,7 @@
             cb.addEventListener('change', async ()=>{
               const was = !!row[f];
               row[f] = cb.checked;
+              td.classList.toggle('is-checked', cb.checked);
               recordFieldChange(list.kind, row.port, f, was ? 'Checked' : 'Unchecked', row[f] ? 'Checked' : 'Unchecked');
               await saveCurrentShow();
             });
