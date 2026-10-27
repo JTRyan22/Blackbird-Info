@@ -1240,6 +1240,10 @@
 
   async function deleteCurrentSave(){
     if(!state.show) return;
+    if(state.savesList.some(s => s.id === state.show.id && s.is_default)){
+      alert('The default show can\u2019t be deleted.');
+      return;
+    }
     if(state.savesList.length <= 1){
       alert('This is the only save left \u2014 it can\u2019t be deleted.');
       return;
@@ -2225,7 +2229,12 @@
       els.ioSaveSelect.appendChild(opt);
     });
 
-    els.ioDeleteBtn.disabled = state.savesList.length <= 1;
+    // The default show can never be deleted (the database refuses it too -- see
+    // protect-default-show.sql), and neither can the last remaining save.
+    const current = state.savesList.find(s => s.id === state.show.id);
+    const isDefaultShow = !!(current && current.is_default);
+    els.ioDeleteBtn.disabled = isDefaultShow || state.savesList.length <= 1;
+    els.ioDeleteBtn.title = isDefaultShow ? 'The default show can\u2019t be deleted' : '';
   }
 
   function renderUserBar(){
@@ -2384,6 +2393,10 @@
 
   els.ioDeleteBtn.addEventListener('click', async ()=>{
     if(!state.show) return;
+    if(state.savesList.some(s => s.id === state.show.id && s.is_default)){
+      alert('The default show can\u2019t be deleted.');
+      return;
+    }
     if(confirm('Delete "' + state.show.name + '"? This can\u2019t be undone.')){
       await deleteCurrentSave();
     }
