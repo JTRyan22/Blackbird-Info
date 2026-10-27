@@ -417,7 +417,20 @@
 
   .cell-check{ padding:0 !important; text-align:center; }
   .cell-check .cb-wrap{ display:flex; align-items:center; justify-content:center; min-height:36px; cursor:pointer; }
-  .cell-check input[type=checkbox]{ width:18px; height:18px; margin:0; cursor:pointer; accent-color:var(--amber); }
+  /* Tick boxes: the header's grey when empty, the linked-cell blue when ticked. */
+  .cell-check input[type=checkbox]{
+    -webkit-appearance:none; appearance:none;
+    width:18px; height:18px; margin:0; border:0; border-radius:4px;
+    background:var(--dim); cursor:pointer;
+    transition:background .12s;
+  }
+  .cell-check input[type=checkbox]:hover{ background:#a3abbb; }
+  .cell-check input[type=checkbox]:checked{
+    background:var(--link) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'><path d='M3 7.5l3 3 5-6' fill='none' stroke='%2312141a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>") center/14px no-repeat;
+  }
+  .cell-check input[type=checkbox]:checked:hover{ background-color:#9fd4ff; }
+  .cell-check input[type=checkbox]:focus-visible{ outline:2px solid var(--amber); outline-offset:2px; }
+  .cell-check input[type=checkbox]:disabled{ cursor:default; opacity:.65; }
   table.io-table th.col-check{ text-align:center; }
   .io-addrow{
     margin-top:10px;
@@ -2400,12 +2413,27 @@
       addRow.className = 'io-addrow';
       addRow.textContent = (list.kind === 'comms') ? '+ Add row' : '+ Add port';
       addRow.addEventListener('click', async ()=>{
-        const maxPort = list.rows.reduce((m,r)=> Math.max(m, Number(r.port)||0), 0);
-        const newRow = (list.kind === 'comms')
-          ? { port: maxPort + 1, location: '', user: '', prod: false, cams: false, audio: false, lighting: false, eng: false }
-          : { port: maxPort + 1, input: '', output: '' };
-        if(state.activeGroup && groupsForList(list).length > 1){ newRow.group = state.activeGroup; }
-        list.rows.push(newRow);
+        // Comms asks how many rows to add; other tabs add one at a time.
+        let addCount = 1;
+        if(list.kind === 'comms'){
+          const answer = prompt('How many rows do you want to add?', '1');
+          if(answer === null){ return; }                    // cancelled
+          addCount = parseInt(String(answer).trim(), 10);
+          if(!Number.isFinite(addCount) || addCount < 1){
+            alert('Please enter a whole number, 1 or more.');
+            return;
+          }
+          // No limit -- but a stray extra zero shouldn't quietly create thousands.
+          if(addCount > 100 && !confirm('Add ' + addCount + ' rows?')){ return; }
+        }
+        for(let i = 0; i < addCount; i++){
+          const maxPort = list.rows.reduce((m,r)=> Math.max(m, Number(r.port)||0), 0);
+          const newRow = (list.kind === 'comms')
+            ? { port: maxPort + 1, location: '', user: '', prod: false, cams: false, audio: false, lighting: false, eng: false }
+            : { port: maxPort + 1, input: '', output: '' };
+          if(state.activeGroup && groupsForList(list).length > 1){ newRow.group = state.activeGroup; }
+          list.rows.push(newRow);
+        }
         await saveCurrentShow();
         renderAll();
       });
