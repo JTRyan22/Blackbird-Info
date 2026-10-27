@@ -1815,7 +1815,7 @@
       if(showLabel2) head += '<th>' + (isRecords ? 'Source' : 'Label') + '</th>';
       if(showStageRackDestination) head += '<th>Destination</th>';
       if(isComms){
-        head += '<th>Location</th><th>User</th>' + COMMS_CHECK_COLUMNS.map(c => '<th class="col-check">' + c[1] + '</th>').join('');
+        head += '<th>User</th><th>Location</th>' + COMMS_CHECK_COLUMNS.map(c => '<th class="col-check">' + c[1] + '</th>').join('');
       }
       if(showDelete) head += '<th class="del-col"></th>';
       head += '</tr></thead>';
@@ -1827,7 +1827,7 @@
         const tr = document.createElement('tr');
 
         if(isComms){
-          ['location', 'user'].forEach(f=>{
+          ['user', 'location'].forEach(f=>{
             const td = document.createElement('td');
             td.className = 'cell-edit';
             const input = document.createElement('input');
