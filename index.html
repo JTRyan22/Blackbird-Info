@@ -307,6 +307,21 @@
   }
   .io-gear-pill.is-ok{ color:#4fd18a; border-color:#2f8f57; }
   .io-gear-pill.is-warn{ color:var(--amber); border-color:var(--amber-dim); }
+  .io-push-btn{ margin-top:6px; display:none; }
+  .io-push-modal{ width:640px; }
+  .io-push-body{ padding:16px 20px 6px; overflow-y:auto; font-family:var(--sans); font-size:13.5px; color:var(--text); }
+  .io-push-sum{ font-weight:600; margin-bottom:8px; }
+  .io-push-warn{ color:var(--amber); font-size:13px; margin:3px 0; }
+  .io-push-note{ color:var(--dim); font-size:12.5px; margin:3px 0; }
+  .io-push-lines{
+    background:#0e1015; border:1px solid var(--line); border-radius:8px; padding:8px 12px; margin:10px 0;
+    max-height:260px; overflow:auto; font-family:var(--mono); font-size:12px; line-height:1.55; color:#b8bfcc; white-space:pre-wrap;
+  }
+  .io-push-follow{ display:flex; gap:10px; align-items:flex-start; margin:10px 0; cursor:pointer; }
+  .io-push-follow input{ margin-top:3px; }
+  .io-push-good{ color:#4fd18a; } .io-push-bad{ color:var(--danger); }
+  .io-push-foot{ display:flex; justify-content:flex-end; gap:10px; padding:12px 20px 16px; }
+  .io-push-foot .io-save-btn.primary{ background:var(--amber); color:#1a1204; border-color:var(--amber); font-weight:600; }
   .io-save-btn:disabled{ opacity:.35; cursor:not-allowed; }
   .io-save-btn:disabled:hover{ border-color:var(--line); color:var(--dim); }
 
@@ -476,6 +491,7 @@
         <div class="io-brand"><img src="blackbird-banner.png" alt="Blackbird Tech Info"></div>
         <div class="io-brand-show" id="ioBrandShow"></div>
         <div class="io-gear-pill" id="ioGearPill"></div>
+        <button class="io-save-btn io-push-btn" id="ioPushBtn" type="button">Push to gear&hellip;</button>
       </div>
       <div class="io-userbar" id="ioUserBar"></div>
       <div class="io-status" id="ioStatus">Saved</div>
@@ -507,6 +523,20 @@
   </div>
 
   <div class="io-table-wrap" id="ioTableWrap"></div>
+</div>
+
+<div id="ioPushModal" class="io-modal-overlay" style="display:none;">
+  <div class="io-modal io-push-modal">
+    <div class="io-modal-header">
+      <div class="io-modal-title" id="ioPushTitle">Push to gear</div>
+      <button class="io-modal-close" id="ioPushClose" type="button">&times;</button>
+    </div>
+    <div class="io-push-body" id="ioPushBody"></div>
+    <div class="io-push-foot">
+      <button class="io-save-btn" id="ioPushCancel" type="button">Cancel</button>
+      <button class="io-save-btn primary" id="ioPushGo" type="button" style="display:none;">Push</button>
+    </div>
+  </div>
 </div>
 
 <div id="ioAccessModal" class="io-modal-overlay" style="display:none;">
@@ -548,6 +578,13 @@
     ioLiveInput: document.getElementById('ioLiveInput'),
     ioLiveLabel: document.getElementById('ioLiveLabel'),
     ioGearPill: document.getElementById('ioGearPill'),
+    ioPushBtn: document.getElementById('ioPushBtn'),
+    ioPushModal: document.getElementById('ioPushModal'),
+    ioPushTitle: document.getElementById('ioPushTitle'),
+    ioPushBody: document.getElementById('ioPushBody'),
+    ioPushGo: document.getElementById('ioPushGo'),
+    ioPushCancel: document.getElementById('ioPushCancel'),
+    ioPushClose: document.getElementById('ioPushClose'),
     ioLockToggle: document.getElementById('ioLockToggle'),
     ioLockInput: document.getElementById('ioLockInput'),
     ioLockLabel: document.getElementById('ioLockLabel'),
@@ -578,6 +615,7 @@
     liveSupported: true,   // false until the is_live column exists (live-gear.sql)
     gear: null,            // latest row from gear_status (the helper's heartbeat)
     gearSupported: true,   // false if gear_status does not exist yet
+    pushSupported: true,   // false if the gear_commands table is missing (gear-push.sql)
     lockSupported: true,   // false until the is_locked column exists (lock-show.sql)
     assignedShowId: null,
     realtimeChannel: null,
@@ -2325,7 +2363,26 @@
 
   // "Gear connected" pill under the show name. Shown to everyone, but only on the
   // show that is currently Live.
+  function gearIsFresh(){
+    const g = state.gear;
+    return !!(g && g.last_seen && (Date.now() - new Date(g.last_seen).getTime()) < 45000);
+  }
+
+  // "Push to gear..." button: admins and editors, on the Live show only.
+  function renderPushBtn(){
+    const b = els.ioPushBtn;
+    const show = !!(state.show && state.show.live && state.liveSupported && state.gearSupported && state.pushSupported &&
+                    (state.userRole === 'admin' || state.userRole === 'editor'));
+    b.style.display = show ? 'inline-block' : 'none';
+    if(!show) return;
+    const fresh = gearIsFresh();
+    b.disabled = !fresh;
+    b.title = fresh ? 'Preview what would change at the router and switcher, then send it'
+                    : 'The gear helper on the ENG Mac is not running or not connected';
+  }
+
   function renderGearPill(){
+    renderPushBtn();
     const el = els.ioGearPill;
     if(!state.show || !state.show.live || !state.liveSupported || !state.gearSupported){ el.style.display = 'none'; return; }
     const g = state.gear;
@@ -2350,6 +2407,119 @@
     el.className = 'io-gear-pill ' + cls;
     el.style.display = 'inline-block';
   }
+
+  // ---- Push to gear (asks the helper on the ENG Mac; see gear-push.sql) ----
+  let _pushPlan = null, _pushBusy = false;
+
+  function pushSet(html){ els.ioPushBody.innerHTML = ''; els.ioPushBody.appendChild(html); }
+  function pushEl(tag, cls, text){ const e = document.createElement(tag); if(cls) e.className = cls; if(text != null) e.textContent = text; return e; }
+
+  async function sendGearCommand(row){
+    const { data, error } = await sb.from('gear_commands').insert(row).select('id').single();
+    if(error){
+      if(/gear_commands|relation|schema cache/i.test(error.message || '')) state.pushSupported = false;
+      throw new Error(state.pushSupported ? (error.message || 'Could not send the request') : 'Push isn\u2019t set up yet \u2014 run gear-push.sql in Supabase.');
+    }
+    return data.id;
+  }
+
+  async function waitForGearCommand(id, timeoutMs){
+    const t0 = Date.now();
+    while(Date.now() - t0 < timeoutMs){
+      await new Promise(r => setTimeout(r, 1000));
+      if(els.ioPushModal.style.display === 'none' && !_pushBusy) return null;
+      const { data } = await sb.from('gear_commands').select('status,result').eq('id', id).maybeSingle();
+      if(data && (data.status === 'done' || data.status === 'error')) return data.result || { ok: false, error: 'No answer' };
+    }
+    return { ok: false, timedOut: true, error: 'The gear helper didn\u2019t answer. Check that it\u2019s running on the ENG Mac, then try again.' };
+  }
+
+  function closePushModal(){
+    if(_pushBusy) return;
+    els.ioPushModal.style.display = 'none';
+    _pushPlan = null;
+  }
+
+  function pushMessage(text, cls){ pushSet(pushEl('div', cls || 'io-push-note', text)); }
+
+  async function openPush(){
+    if(!state.show || _pushBusy) return;
+    els.ioPushModal.style.display = 'flex';
+    els.ioPushTitle.textContent = 'Push \u201C' + state.show.name + '\u201D to the gear';
+    els.ioPushGo.style.display = 'none'; els.ioPushGo.disabled = false;
+    els.ioPushCancel.textContent = 'Cancel'; els.ioPushCancel.disabled = false;
+    pushMessage('Saving your latest edits and asking the gear helper what would change\u2026');
+    _pushBusy = true; els.ioPushCancel.disabled = true;
+    let res;
+    try{
+      await flushPendingSave();
+      const id = await sendGearCommand({ kind: 'preview', show_id: state.show.id, requested_by: state.userEmail });
+      res = await waitForGearCommand(id, 25000);
+    } catch(e){ res = { ok: false, error: e.message }; }
+    _pushBusy = false; els.ioPushCancel.disabled = false;
+    if(!res) return;
+    if(!res.ok){ pushMessage(res.error || 'The preview failed.', 'io-push-bad'); els.ioPushCancel.textContent = 'Close'; return; }
+    _pushPlan = res;
+    renderPushPreview(res);
+  }
+
+  function renderPushPreview(p){
+    const wrap = document.createElement('div');
+    const c = p.counts || {}; const parts = [];
+    if(c.routerLabels) parts.push(c.routerLabels + ' router label' + (c.routerLabels === 1 ? '' : 's'));
+    if(c.routes) parts.push(c.routes + ' route' + (c.routes === 1 ? '' : 's'));
+    if(c.switcherNames) parts.push(c.switcherNames + ' switcher name' + (c.switcherNames === 1 ? '' : 's'));
+    if(c.aux) parts.push(c.aux + ' switcher aux output' + (c.aux === 1 ? '' : 's'));
+    wrap.appendChild(pushEl('div', 'io-push-sum', p.total ? p.total + ' change' + (p.total === 1 ? '' : 's') + ': ' + parts.join(', ') : 'The gear already matches the list.'));
+    [].concat(p.skipped || [], p.problems || []).forEach(w => wrap.appendChild(pushEl('div', 'io-push-warn', '\u26A0 ' + w)));
+    if(p.total){
+      wrap.appendChild(pushEl('div', 'io-push-lines', (p.lines || []).join('\n')));
+      const lab = pushEl('label', 'io-push-follow');
+      const cb = document.createElement('input'); cb.type = 'checkbox'; cb.id = 'ioPushFollow';
+      const d = document.createElement('div');
+      d.appendChild(document.createTextNode('After a successful push, start following the gear'));
+      d.appendChild(pushEl('div', 'io-push-note', 'Changes made at the router and switcher will then update this list.'));
+      lab.appendChild(cb); lab.appendChild(d); wrap.appendChild(lab);
+      wrap.appendChild(pushEl('div', 'io-push-note', 'Nothing is sent until you press the button below.'));
+    }
+    pushSet(wrap);
+    els.ioPushGo.style.display = p.total ? '' : 'none';
+    els.ioPushGo.textContent = 'Push ' + p.total + ' change' + (p.total === 1 ? '' : 's') + ' to the gear';
+    els.ioPushCancel.textContent = p.total ? 'Cancel' : 'Close';
+  }
+
+  async function confirmPush(){
+    if(!_pushPlan || !_pushPlan.total || _pushBusy) return;
+    const follow = !!(document.getElementById('ioPushFollow') || {}).checked;
+    const token = _pushPlan.token;
+    _pushBusy = true; els.ioPushGo.disabled = true; els.ioPushCancel.disabled = true;
+    pushMessage('Sending to the gear\u2026 please wait, this takes a few seconds.');
+    let res;
+    try{
+      const id = await sendGearCommand({ kind: 'execute', show_id: state.show.id, token, then_follow: follow, requested_by: state.userEmail });
+      res = await waitForGearCommand(id, 60000);
+    } catch(e){ res = { ok: false, error: e.message }; }
+    _pushBusy = false; els.ioPushCancel.disabled = false; els.ioPushCancel.textContent = 'Close'; els.ioPushGo.style.display = 'none';
+    _pushPlan = null;
+    const wrap = document.createElement('div');
+    if(res && res.ok){
+      wrap.appendChild(pushEl('div', 'io-push-good', 'Done. The gear now matches the list.' + (res.following ? ' The helper is now following the gear.' : ' The helper is still on hold \u2014 changes at the gear won\u2019t update the list until following is switched on in the helper.')));
+    } else if(res && res.timedOut){
+      wrap.appendChild(pushEl('div', 'io-push-bad', res.error));
+      wrap.appendChild(pushEl('div', 'io-push-note', 'The push may or may not have gone through. Open this again to preview \u2014 if the gear already matches, it did.'));
+    } else {
+      wrap.appendChild(pushEl('div', 'io-push-bad', (res && res.error) || 'Some changes did not go through.' ) );
+      if(res && res.remaining) wrap.appendChild(pushEl('div', 'io-push-bad', res.remaining + ' still differ.'));
+      ((res && res.failed) || []).forEach(f => wrap.appendChild(pushEl('div', 'io-push-bad', '\u2022 ' + f.what + ': ' + f.error)));
+      wrap.appendChild(pushEl('div', 'io-push-note', res && res.changed ? 'Press Close, then Push to gear again to get a fresh preview.' : 'The helper is on hold, so the list has not been changed. Fix the problem and preview again.'));
+    }
+    pushSet(wrap);
+  }
+
+  els.ioPushBtn.addEventListener('click', openPush);
+  els.ioPushGo.addEventListener('click', confirmPush);
+  els.ioPushCancel.addEventListener('click', closePushModal);
+  els.ioPushClose.addEventListener('click', closePushModal);
 
   let _gearTimer = null;
   async function pollGear(){
