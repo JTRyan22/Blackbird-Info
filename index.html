@@ -296,6 +296,17 @@
   .io-lock-toggle input:checked ~ .io-lock-label{ color:var(--amber); }
   .io-lock-toggle input:focus-visible + .io-switch{ outline:2px solid var(--amber); outline-offset:2px; }
   .io-lock-toggle.is-disabled{ opacity:.35; cursor:not-allowed; }
+  /* Live switch: on (green) = this show is the one the router/switcher feeds */
+  .io-live-toggle input:checked + .io-switch{ background:#12361f; border-color:#2f8f57; }
+  .io-live-toggle input:checked + .io-switch::after{ background:#4fd18a; }
+  .io-live-toggle input:checked ~ .io-lock-label{ color:#4fd18a; }
+  /* Gear status pill under the show name */
+  .io-gear-pill{
+    margin-top:6px; padding:3px 12px; border-radius:999px; font-size:13px; font-family:var(--sans);
+    border:1px solid var(--line); color:var(--dim); background:var(--panel-2); display:none;
+  }
+  .io-gear-pill.is-ok{ color:#4fd18a; border-color:#2f8f57; }
+  .io-gear-pill.is-warn{ color:var(--amber); border-color:var(--amber-dim); }
   .io-save-btn:disabled{ opacity:.35; cursor:not-allowed; }
   .io-save-btn:disabled:hover{ border-color:var(--line); color:var(--dim); }
 
@@ -478,6 +489,7 @@
       <div class="io-brand-col">
         <div class="io-brand"><img src="blackbird-banner.png" alt="Blackbird Tech Info"></div>
         <div class="io-brand-show" id="ioBrandShow"></div>
+        <div class="io-gear-pill" id="ioGearPill"></div>
       </div>
       <div class="io-userbar" id="ioUserBar"></div>
       <div class="io-status" id="ioStatus">Saved</div>
@@ -493,6 +505,11 @@
       <input type="checkbox" id="ioLockInput">
       <span class="io-switch"></span>
       <span class="io-lock-label" id="ioLockLabel">Unlocked</span>
+    </label>
+    <label class="io-lock-toggle io-live-toggle" id="ioLiveToggle">
+      <input type="checkbox" id="ioLiveInput">
+      <span class="io-switch"></span>
+      <span class="io-lock-label" id="ioLiveLabel">Not live</span>
     </label>
   </div>
 
@@ -541,6 +558,10 @@
     ioSaveBtn: document.getElementById('ioSaveBtn'),
 
     ioDeleteBtn: document.getElementById('ioDeleteBtn'),
+    ioLiveToggle: document.getElementById('ioLiveToggle'),
+    ioLiveInput: document.getElementById('ioLiveInput'),
+    ioLiveLabel: document.getElementById('ioLiveLabel'),
+    ioGearPill: document.getElementById('ioGearPill'),
     ioLockToggle: document.getElementById('ioLockToggle'),
     ioLockInput: document.getElementById('ioLockInput'),
     ioLockLabel: document.getElementById('ioLockLabel'),
@@ -568,6 +589,9 @@
     userEmail: null,
     userRole: null,   // 'admin' | 'editor' | 'viewer' | null (no access)
     readOnly: false,
+    liveSupported: true,   // false until the is_live column exists (live-gear.sql)
+    gear: null,            // latest row from gear_status (the helper's heartbeat)
+    gearSupported: true,   // false if gear_status does not exist yet
     lockSupported: true,   // false until the is_locked column exists (lock-show.sql)
     assignedShowId: null,
     realtimeChannel: null,
@@ -642,12 +666,22 @@
   }
 
   async function dbListSaves(){
-    const { data, error } = await sb.from('shows').select('id,name,is_default').order('name');
+    let res = await sb.from('shows').select('id,name,is_default,is_live').order('name');
+    if(res.error && /is_live/.test(res.error.message || '')){
+      state.liveSupported = false;
+      res = await sb.from('shows').select('id,name,is_default').order('name');
+    }
+    const { data, error } = res;
     if(error){ console.error(error); showDbError(error); return []; }
     return data || [];
   }
   async function dbGetShowById(id){
-    let res = await sb.from('shows').select('id,name,data,is_locked').eq('id', id).maybeSingle();
+    let res = await sb.from('shows').select('id,name,data,is_locked,is_live').eq('id', id).maybeSingle();
+    if(res.error && /is_live/.test(res.error.message || '')){
+      // live-gear.sql not run yet: carry on without the Live switch.
+      state.liveSupported = false;
+      res = await sb.from('shows').select('id,name,data,is_locked').eq('id', id).maybeSingle();
+    }
     if(res.error && /is_locked/.test(res.error.message || '')){
       // The lock column hasn't been added yet (lock-show.sql not run): carry on
       // without locking rather than failing to load anything.
@@ -662,8 +696,22 @@
       name: data.name,
       sourceNames: (data.data && data.data.sourceNames) || [],
       lists: (data.data && data.data.lists) || [],
-      locked: !!data.is_locked
+      locked: !!data.is_locked,
+      live: !!data.is_live
     };
+  }
+  async function dbSetLive(id, live){
+    // The database turns every other show's Live flag off by itself (live-gear.sql).
+    const { error } = await sb.from('shows').update({ is_live: live }).eq('id', id);
+    if(error){ console.error(error); showDbError(error); return false; }
+    return true;
+  }
+  async function dbGetGearStatus(){
+    try {
+      const { data, error } = await sb.from('gear_status').select('*').eq('id', 'main').maybeSingle();
+      if(error){ state.gearSupported = false; return null; }
+      return data || null;
+    } catch(e){ state.gearSupported = false; return null; }
   }
   async function dbSetLocked(id, locked){
     const { error } = await sb.from('shows').update({ is_locked: locked }).eq('id', id);
@@ -991,7 +1039,7 @@
     return '{' + Object.keys(v).sort().map(k => JSON.stringify(k) + ':' + stableStringify(v[k])).join(',') + '}';
   }
   function showFingerprint(s){
-    return stableStringify({ name: s.name || '', locked: !!s.locked, sourceNames: s.sourceNames || [], lists: s.lists || [] });
+    return stableStringify({ name: s.name || '', locked: !!s.locked, live: !!s.live, sourceNames: s.sourceNames || [], lists: s.lists || [] });
   }
 
   async function applyRemoteShowUpdate(){
@@ -1273,6 +1321,7 @@
     newShow.id = uid('show');
     newShow.name = name;
     newShow.locked = false;   // a copy of a locked show starts out editable
+    newShow.live = false;     // ...and never takes over the router/switcher feed
     const ok = await dbUpsertShow(newShow);
     if(!ok) return;
     state.show = newShow;
@@ -2296,6 +2345,16 @@
     els.ioLockToggle.title = !state.lockSupported
       ? 'Run lock-show.sql in Supabase to turn locking on'
       : (isLocked ? 'Locked \u2014 switch off to let this show be edited again' : 'Switch on to lock this show so nobody can change it');
+
+    const isLive = !!state.show.live;
+    els.ioLiveInput.checked = isLive;
+    els.ioLiveInput.disabled = !state.liveSupported;
+    els.ioLiveLabel.textContent = isLive ? 'Live' : 'Not live';
+    els.ioLiveToggle.classList.toggle('is-disabled', !state.liveSupported);
+    els.ioLiveToggle.title = !state.liveSupported
+      ? 'Run live-gear.sql in Supabase to turn this on'
+      : (isLive ? 'This show is fed by the router and switcher \u2014 switch off to stop' : 'Switch on to feed this show from the router and switcher (only one show can be live)');
+    renderGearPill();
   }
 
   function renderUserBar(){
@@ -2321,9 +2380,50 @@
     els.ioUserBar.appendChild(signoutBtn);
   }
 
+  // "Gear connected" pill under the show name. Shown to everyone, but only on the
+  // show that is currently Live.
+  function renderGearPill(){
+    const el = els.ioGearPill;
+    if(!state.show || !state.show.live || !state.liveSupported || !state.gearSupported){ el.style.display = 'none'; return; }
+    const g = state.gear;
+    const fresh = g && g.last_seen && (Date.now() - new Date(g.last_seen).getTime()) < 45000;
+    let text, cls, title;
+    if(!fresh){
+      text = 'Live \u2022 gear helper offline'; cls = 'is-warn';
+      title = 'The program that connects the router and switcher is not reporting. The list is not being updated from the gear.';
+    } else {
+      const bad = [];
+      if(g.router_state && g.router_state !== 'connected' && g.router_state !== 'not configured') bad.push('router ' + g.router_state);
+      if(g.switcher_state && g.switcher_state !== 'connected' && g.switcher_state !== 'not configured') bad.push('switcher ' + g.switcher_state);
+      const paused = /^(Paused|Write failed|Error)/.test(g.detail || '');
+      if(bad.length){ text = 'Live \u2022 ' + bad.join(', '); cls = 'is-warn'; }
+      else if(paused){ text = 'Live \u2022 ' + (g.detail || '').split(':')[0].toLowerCase(); cls = 'is-warn'; }
+      else if(g.mode === 'report'){ text = 'Live \u2022 gear connected (on hold)'; cls = 'is-warn'; }
+      else { text = 'Live \u2022 gear connected'; cls = 'is-ok'; }
+      title = (g.detail || '') + (g.mode === 'report' ? ' \u2014 on hold: the helper is watching but not changing the list' : '');
+    }
+    el.textContent = text;
+    el.title = title;
+    el.className = 'io-gear-pill ' + cls;
+    el.style.display = 'inline-block';
+  }
+
+  let _gearTimer = null;
+  async function pollGear(){
+    if(!state.liveSupported || !state.gearSupported){ return; }
+    state.gear = await dbGetGearStatus();
+    renderGearPill();
+  }
+  function startGearPolling(){
+    if(_gearTimer) return;
+    pollGear();
+    _gearTimer = setInterval(pollGear, 15000);
+  }
+
   function renderBrandShow(){
     els.ioBrandShow.textContent = state.show ? ((state.show.locked ? '\uD83D\uDD12 ' : '') + state.show.name) : '';
     els.ioBrandShow.title = (state.show && state.show.locked) ? 'This show is locked \u2014 it can\u2019t be changed until an admin unlocks it' : '';
+    renderGearPill();
   }
 
   // Disables every editable field and hides row-add/delete controls when the
@@ -2476,6 +2576,31 @@
     renderSaveBar();                    // also puts the switch back to the true state
   });
 
+  els.ioLiveInput.addEventListener('change', async ()=>{
+    if(!state.show || !state.liveSupported){ renderSaveBar(); return; }
+    const goLive = els.ioLiveInput.checked;
+    if(goLive){
+      const other = state.savesList.find(s => s.is_live && s.id !== state.show.id);
+      const msg = other
+        ? 'Make "' + state.show.name + '" the live show? "' + other.name + '" will stop receiving updates from the router and switcher.'
+        : 'Make "' + state.show.name + '" the live show? Once the gear helper is running, changes made at the router and switcher will update this show.';
+      if(!confirm(msg)){ els.ioLiveInput.checked = false; return; }
+    } else if(!confirm('Stop feeding "' + state.show.name + '" from the router and switcher?')){
+      els.ioLiveInput.checked = true; return;
+    }
+    els.ioLiveInput.disabled = true;
+    if(goLive){ await flushPendingSave(); }
+    const ok = await dbSetLive(state.show.id, goLive);
+    if(ok){
+      state.show.live = goLive;
+      state.savesList.forEach(s => { s.is_live = goLive && s.id === state.show.id; });
+      renderBrandShow();
+      flashStatus(goLive ? 'Live' : 'No longer live');
+      if(goLive){ pollGear(); }
+    }
+    renderSaveBar();
+  });
+
   els.ioDeleteBtn.addEventListener('click', async ()=>{
     if(!state.show) return;
     if(state.savesList.some(s => s.id === state.show.id && s.is_default)){
@@ -2573,6 +2698,7 @@
     renderUserBar();
     renderAll();
     renderSaveBar();
+    startGearPolling();
     applyReadOnly();
     if(state.show && state.show.id){ subscribeToShow(state.show.id); }
     subscribeToMyAccess(email);
