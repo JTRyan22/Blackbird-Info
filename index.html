@@ -414,20 +414,6 @@
   }
   .cell-linked .chain{ font-size:12px; opacity:.8; }
 
-  .link-tip{
-    position:fixed; z-index:600;
-    background:var(--panel);
-    border:1px solid var(--link);
-    border-radius:8px;
-    padding:10px 14px;
-    font-family:var(--sans);
-    font-size:16px;
-    line-height:1.4;
-    color:var(--text);
-    max-width:min(420px, calc(100vw - 16px));
-    box-shadow:0 8px 24px rgba(0,0,0,.5);
-    pointer-events:none;
-  }
   .row-del{
     background:none;border:none;color:var(--dim);cursor:pointer;
     font-size:15px; padding:6px; opacity:.5;
@@ -1580,51 +1566,9 @@
     return FIELD_DISPLAY_NAMES[field] || 'Input';
   }
 
-  // --- Linked-cell hover note ---
-  // Drawn by the app rather than the browser's built-in title tooltip, because that
-  // one can't be made any larger and some people struggle to read it. It sits just
-  // below the cell (or above, near the bottom of the screen) so it never covers the
-  // cell being pointed at.
-  // It only appears after the pointer has rested on the cell for a moment, so it
-  // doesn't flash up while the mouse is just passing over.
-  const LINK_TIP_DELAY_MS = 2000;
-  let linkTipEl = null, linkTipFor = null, linkTipTimer = null, linkTipPending = null;
-  function setLinkTip(el, text){ el.setAttribute('data-tip', text); }
-  function hideLinkTip(){
-    if(linkTipTimer){ clearTimeout(linkTipTimer); linkTipTimer = null; }
-    linkTipPending = null;
-    if(linkTipEl){ linkTipEl.remove(); linkTipEl = null; }
-    linkTipFor = null;
-  }
-  function scheduleLinkTip(el){
-    if(el === linkTipFor || el === linkTipPending) return;   // already showing / already counting down
-    hideLinkTip();
-    linkTipPending = el;
-    linkTipTimer = setTimeout(()=>{
-      linkTipTimer = null;
-      linkTipPending = null;
-      if(el.isConnected){ showLinkTip(el); }
-    }, LINK_TIP_DELAY_MS);
-  }
-  function showLinkTip(el){
-    if(el === linkTipFor) return;
-    hideLinkTip();
-    const anchor = el.closest('td') || el;
-    const tip = document.createElement('div');
-    tip.className = 'link-tip';
-    tip.textContent = el.getAttribute('data-tip');
-    document.body.appendChild(tip);
-    const a = anchor.getBoundingClientRect();
-    const t = tip.getBoundingClientRect();
-    const gap = 6, margin = 8;
-    let top = a.bottom + gap;
-    if(top + t.height > window.innerHeight - margin){ top = Math.max(margin, a.top - gap - t.height); }
-    const left = Math.min(Math.max(margin, a.left), Math.max(margin, window.innerWidth - t.width - margin));
-    tip.style.top = top + 'px';
-    tip.style.left = left + 'px';
-    linkTipEl = tip;
-    linkTipFor = el;
-  }
+  // (The hover note for linked cells was removed on request. Linked cells keep their
+  // blue styling; setLinkTip is kept as a no-op so the render code needn't change.)
+  function setLinkTip(){}
 
   function listLabel(kind){
 
@@ -1801,7 +1745,6 @@
   }
 
   function renderTable(){
-    hideLinkTip();
     const list = activeList();
     els.ioTableWrap.innerHTML = '';
 
@@ -2523,12 +2466,6 @@
 
   // --- Events ---
   els.ioTableWrap.addEventListener('focusout', ()=>{ setTimeout(runIdleJobs, 0); });
-  els.ioTableWrap.addEventListener('mouseover', (e)=>{
-    const el = e.target && e.target.closest ? e.target.closest('[data-tip]') : null;
-    if(el){ scheduleLinkTip(el); } else { hideLinkTip(); }
-  });
-  els.ioTableWrap.addEventListener('mouseleave', hideLinkTip);
-  document.addEventListener('scroll', hideLinkTip, true);
   let searchDebounce;
   els.ioSearch.addEventListener('input', ()=>{
     clearTimeout(searchDebounce);
