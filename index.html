@@ -1844,6 +1844,7 @@
       if(showSourceDest) head += '<th>Source</th><th>Destination</th>';
       if(showLabel2) head += '<th>' + (isRecords ? 'Source' : 'Label') + '</th>';
       if(showStageRackDestination) head += '<th>Destination</th>';
+      if(isRecords) head += '<th title="The recording name sent to this deck by Push to gear. Leave blank to leave the deck alone.">File name</th>';
       if(isComms){
         head += '<th>User</th><th>Location</th>' + COMMS_CHECK_COLUMNS.map(c => '<th class="col-check">' + c[1] + '</th>').join('');
       }
@@ -2228,6 +2229,26 @@
           tr.appendChild(td);
         }
 
+        if(isRecords){
+          const tdFile = document.createElement('td');
+          tdFile.className = 'cell-edit';
+          const fileInput = document.createElement('input');
+          fileInput.type = 'text';
+          fileInput.setAttribute('enterkeyhint', 'done');
+          fileInput.setAttribute('maxlength', '40');
+          fileInput.value = row.fileName || '';
+          fileInput.placeholder = '\u2014';
+          fileInput.title = 'Recording name sent to this deck by Push to gear (letters, numbers, spaces, - _ .). Blank leaves the deck alone.';
+          autoSizeInput(fileInput);
+          fileInput.addEventListener('input', ()=> autoSizeInput(fileInput));
+          fileInput.addEventListener('change', async ()=>{
+            row.fileName = fileInput.value;
+            await saveCurrentShow();
+          });
+          tdFile.appendChild(fileInput);
+          tr.appendChild(tdFile);
+        }
+
         if(showDelete){
           const tdDel = document.createElement('td');
           const delBtn = document.createElement('button');
@@ -2470,6 +2491,7 @@
     if(c.routes) parts.push(c.routes + ' route' + (c.routes === 1 ? '' : 's'));
     if(c.switcherNames) parts.push(c.switcherNames + ' switcher name' + (c.switcherNames === 1 ? '' : 's'));
     if(c.aux) parts.push(c.aux + ' switcher aux output' + (c.aux === 1 ? '' : 's'));
+    if(c.deckNames) parts.push(c.deckNames + ' HyperDeck file name' + (c.deckNames === 1 ? '' : 's'));
     wrap.appendChild(pushEl('div', 'io-push-sum', p.total ? p.total + ' change' + (p.total === 1 ? '' : 's') + ': ' + parts.join(', ') : 'The gear already matches the list.'));
     [].concat(p.skipped || [], p.problems || []).forEach(w => wrap.appendChild(pushEl('div', 'io-push-warn', '\u26A0 ' + w)));
     if(p.total){
